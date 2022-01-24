@@ -15,24 +15,20 @@ async function main() {
 
     console.log("starting deployment...");
 
-    // TODO update all
-    const ownerAccount = await hre.reef.getSignerByName("account");
+    const ownerAccount = await hre.reef.getSignerByName("mainnetAccount");
 
-    // Deploy CoralMarketplace
-    const NFTMarketplace = await hre.reef.getContractFactory("CoralMarketplace", ownerAccount);
+    // Deploy SqwidMarketplace
+    const Marketplace = await hre.reef.getContractFactory("SqwidMarketplace", ownerAccount);
     const marketFee = 250; // 2.5%
-    const nftMarketplace = await NFTMarketplace.deploy(marketFee);
-    await nftMarketplace.deployed();
-    console.log(`CoralMarketplace deployed in ${nftMarketplace.address}`);
+    const marketplace = await Marketplace.deploy(marketFee);
+    await marketplace.deployed();
+    console.log(`SqwidMarketplace deployed in ${marketplace.address}`);
 
-    // Deploy CoralNFT
-    const NFT = await hre.reef.getContractFactory("CoralNFT", ownerAccount);
-    const nft = await NFT.deploy(nftMarketplace.address, loan.address);
+    // Deploy SqwidERC1155
+    const NFT = await hre.reef.getContractFactory("SqwidERC1155", ownerAccount);
+    const nft = await NFT.deploy(marketplace.address);
     await nft.deployed();
-    console.log(`CoralNFT deployed to ${nft.address}`);
-
-    // Set loan contract address in CoralMarketplace
-    await nftMarketplace.connect(ownerAccount).setLoanAddress(loan.address);
+    console.log(`SqwidERC1155 deployed to ${nft.address}`);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

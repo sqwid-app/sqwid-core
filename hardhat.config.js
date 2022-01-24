@@ -56,7 +56,7 @@ module.exports = {
     },
     contracts: {
         market: "0x6e0CC4C9836729EF865D88a6CcFa4c11fc3CB03d",
-        nft: "0x81949570801abfA3ea3a042C4EffEEF07673394c",
+        nft: "0xC57821E02667df54145776F0de09a9DbB929665d",
         reef: "0x0000000000000000000000000000000001000000",
     },
 };
