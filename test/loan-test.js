@@ -52,8 +52,8 @@ describe("************ Loans ******************", () => {
 
         // Initialize global variables
         maxGasFee = ethers.utils.parseUnits("10", "ether");
-        loanAmount = ethers.utils.parseUnits("300", "ether");
-        feeAmount = ethers.utils.parseUnits("30", "ether");
+        loanAmount = ethers.utils.parseUnits("200", "ether");
+        feeAmount = ethers.utils.parseUnits("20", "ether");
         loanDuration = 1; // Min loan duration is 1440 min. Change in contract to 1 min for testing.
         royaltyValue = 1000; // 10%
         token1Amount = 1000;
@@ -64,7 +64,7 @@ describe("************ Loans ******************", () => {
             console.log("\tdeploying Market contract...");
             await getBalance(ownerAddress, "owner");
             const Market = await reef.getContractFactory("SqwidMarketplace", owner);
-            market = await Market.deploy(2500);
+            market = await Market.deploy(250);
             await market.deployed();
             marketContractAddress = market.address;
             await getBalance(ownerAddress, "owner");
@@ -134,7 +134,7 @@ describe("************ Loans ******************", () => {
                 loanDuration
             );
         const receipt2 = await tx2.wait();
-        loan1Id = receipt2.events[2].args[0].toNumber();
+        loan1Id = receipt2.events[3].args[0].toNumber();
         console.log(`\tLoan proposal created with id ${loan1Id}`);
         await getBalance(borrowerAddress, "borrower");
 

@@ -13,6 +13,7 @@ artifacts
 .pnp.*
 
 .secret
+.env
 seeds.json
 notes.txt
 TODO.txt

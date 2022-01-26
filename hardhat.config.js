@@ -55,7 +55,7 @@ module.exports = {
         timeout: 150000,
     },
     contracts: {
-        market: "0x6e0CC4C9836729EF865D88a6CcFa4c11fc3CB03d",
+        market: "0x6Ee8808018b1F944b22418683A86B72F90F34550",
         nft: "0xC57821E02667df54145776F0de09a9DbB929665d",
         reef: "0x0000000000000000000000000000000001000000",
     },

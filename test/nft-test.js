@@ -61,7 +61,7 @@ describe("************ NFT ******************", () => {
         assert(supportsErc2981);
     });
 
-    it.only("Should create tokens", async () => {
+    it("Should create tokens", async () => {
         // Create tokens
         console.log("\tcreating tokens...");
 

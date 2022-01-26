@@ -231,7 +231,7 @@ describe("************ Raffles ******************", () => {
         const iniRaffles = await market.fetchAllRaffles();
         const iniSellerBalance = await getBalance(sellerAddress, "seller");
         const iniArtistBalance = await getBalance(artistAddress, "artist");
-        const iniOwnerBalance = await getBalance(ownerAddress, "marketOwner");
+        const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const iniMarketBalance = await getBalance(marketContractAddress, "market");
         await getBalance(helperAddress, "helper");
         const iniBuyer1TokenAmount = Number(await nft.balanceOf(buyer1Address, tokenId));
@@ -257,7 +257,7 @@ describe("************ Raffles ******************", () => {
         const endItem = await market.fetchItem(itemId);
         const endSellerBalance = await getBalance(sellerAddress, "seller");
         const endArtistBalance = await getBalance(artistAddress, "artist");
-        const endOwnerBalance = await getBalance(ownerAddress, "marketOwner");
+        const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const endMarketBalance = await getBalance(marketContractAddress, "market");
         const royaltiesAmount = (buyer1RaffleAmount.add(buyer2RaffleAmount) * royaltyValue) / 10000;
         const marketFeeAmount =
@@ -278,8 +278,8 @@ describe("************ Raffles ******************", () => {
         expect(Math.round(endArtistBalance)).to.equal(
             Math.round(iniArtistBalance + formatBigNumber(royaltiesAmount))
         );
-        expect(Math.round(endOwnerBalance)).to.equal(
-            Math.round(iniOwnerBalance + formatBigNumber(marketFeeAmount))
+        expect(formatBigNumber(endOwnerMarketBalance)).to.equal(
+            formatBigNumber(iniOwnerMarketBalance) + formatBigNumber(marketFeeAmount)
         );
         expect(Math.round(endSellerBalance)).to.equal(
             Math.round(
@@ -290,18 +290,17 @@ describe("************ Raffles ******************", () => {
                     formatBigNumber(marketFeeAmount)
             )
         );
-        expect(endMarketBalance)
-            .to.gte(
-                iniMarketBalance -
-                    formatBigNumber(buyer1RaffleAmount) -
-                    formatBigNumber(buyer2RaffleAmount)
-            )
-            .lt(
-                iniMarketBalance -
-                    formatBigNumber(buyer1RaffleAmount) -
-                    formatBigNumber(buyer2RaffleAmount) +
-                    1
-            );
+        console.log(endMarketBalance);
+        console.log(iniMarketBalance);
+        console.log(formatBigNumber(buyer1RaffleAmount));
+        console.log(formatBigNumber(buyer2RaffleAmount));
+        console.log(formatBigNumber(marketFeeAmount));
+        expect(endMarketBalance).to.equal(
+            iniMarketBalance -
+                formatBigNumber(buyer1RaffleAmount) -
+                formatBigNumber(buyer2RaffleAmount) +
+                formatBigNumber(marketFeeAmount)
+        );
 
         expect(endItem.sales[0].seller).to.equal(sellerAddress);
         expect(endItem.sales[0].buyer).to.be.oneOf([buyer1Address, buyer2Address]);
@@ -364,7 +363,7 @@ describe("************ Raffles ******************", () => {
             .connect(seller)
             .createNewNftRaffle(nftContractAddress, tokenId, tokensAmount, numMinutes);
         const receipt2 = await tx2.wait();
-        raffleId = receipt2.events[2].args[0];
+        raffleId = receipt2.events[3].args[0];
         console.log(`\traffle created with id ${raffleId}`);
         await getBalance(sellerAddress, "seller");
         const midSellerPositions = await market.connect(seller).fetchMyPositions();
@@ -391,8 +390,9 @@ describe("************ Raffles ******************", () => {
         expect(endSellerTokenAmount).to.equal(tokensAmount);
         expect(endRaffles.length).to.equal(iniRaffles.length);
         expect(iniTokenPositions.length).to.equal(0);
-        expect(midTokenPositions.length).to.equal(1);
-        expect(midTokenPositions[0].state).to.equal(3); // Raffle = 3
+        expect(midTokenPositions.length).to.equal(2);
+        expect(midTokenPositions[0].state).to.equal(0); // Available = 0
+        expect(midTokenPositions[1].state).to.equal(3); // Raffle = 3
         expect(endTokenPositions.length).to.equal(1);
         expect(endTokenPositions[0].state).to.equal(0); // Avalilable = 0
     });
