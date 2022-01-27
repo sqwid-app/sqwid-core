@@ -1,4 +1,5 @@
 const { expect, assert } = require("chai");
+const { formatBigNumber, getBalance, throwsException } = require("./util");
 const ReefAbi = require("./ReefToken.json");
 
 describe("************ Marketplace ******************", () => {
@@ -57,12 +58,12 @@ describe("************ Marketplace ******************", () => {
         if (!marketContractAddress || marketContractAddress == "") {
             // Deploy SqwidMarketplace contract
             console.log("\tdeploying Market contract...");
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
             const Market = await reef.getContractFactory("SqwidMarketplace", owner);
             market = await Market.deploy(marketFee);
             await market.deployed();
             marketContractAddress = market.address;
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
 
             if (nftContractAddress) {
                 const NFT = await reef.getContractFactory("SqwidERC1155", owner);
@@ -79,12 +80,12 @@ describe("************ Marketplace ******************", () => {
         if (!nftContractAddress || nftContractAddress == "") {
             // Deploy SqwidERC1155 contract
             console.log("\tdeploying NFT contract...");
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
             const NFT = await reef.getContractFactory("SqwidERC1155", owner);
             nft = await NFT.deploy(marketContractAddress);
             await nft.deployed();
             nftContractAddress = nft.address;
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
         } else if (!nft) {
             // Get deployed contract
             const NFT = await reef.getContractFactory("SqwidERC1155", owner);
@@ -100,12 +101,12 @@ describe("************ Marketplace ******************", () => {
         );
 
         await market.connect(owner).setMarketFee(350);
-        let fetchedMarketFee = await market.connect(owner).getMarketFee();
-        expect(Number(fetchedMarketFee)).to.equal(Number(350));
+        let fetchedMarketFee = await market.connect(owner).marketFee();
+        expect(Number(fetchedMarketFee)).to.equal(350);
 
         await market.connect(owner).setMarketFee(250);
-        fetchedMarketFee = await market.connect(owner).getMarketFee();
-        expect(Number(fetchedMarketFee)).to.equal(Number(250));
+        fetchedMarketFee = await market.connect(owner).marketFee();
+        expect(Number(fetchedMarketFee)).to.equal(250);
     });
 
     it("Should create market item", async () => {
@@ -150,7 +151,7 @@ describe("************ Marketplace ******************", () => {
         expect(Number(position.item.itemId)).to.equal(item1Id);
         expect(position.owner).to.equal(sellerAddress);
         expect(Number(position.amount)).to.equal(1);
-        expect(Number(position.price)).to.equal(Number(salePrice));
+        expect(formatBigNumber(position.price)).to.equal(formatBigNumber(salePrice));
         expect(Number(position.marketFee)).to.equal(Number(marketFee));
         expect(Number(position.state)).to.equal(1); // PositionState.RegularSale = 1
         expect(Number(item.positions.at(-1).positionId)).to.equal(position1Id);
@@ -194,8 +195,8 @@ describe("************ Marketplace ******************", () => {
         expect(Number(endItems.at(-1).itemId)).to.equal(item2Id);
         expect(position.owner).to.equal(sellerAddress);
         expect(Number(position.amount)).to.equal(10);
-        expect(Number(position.price)).to.equal(Number(salePrice));
-        expect(Number(position.marketFee)).to.equal(Number(marketFee));
+        expect(formatBigNumber(position.price)).to.equal(formatBigNumber(salePrice));
+        expect(Number(position.marketFee)).to.equal(marketFee);
         expect(Number(position.state)).to.equal(1); // RegularSale = 1
         expect(Number(item.positions.at(-1).positionId)).to.equal(position2Id);
         expect(endPositionsOnRegSale.length - iniPositionsOnRegSale.length).to.equal(1);
@@ -215,9 +216,9 @@ describe("************ Marketplace ******************", () => {
 
     it("Should create sale", async () => {
         // Initial data
-        const iniSellerBalance = await getBalance(sellerAddress, "seller");
-        const iniBuyer1Balance = await getBalance(buyer1Address, "buyer1");
-        const iniArtistBalance = await getBalance(artistAddress, "artist");
+        const iniSellerBalance = await getBalance(reefToken, sellerAddress, "seller");
+        const iniBuyer1Balance = await getBalance(reefToken, buyer1Address, "buyer1");
+        const iniArtistBalance = await getBalance(reefToken, artistAddress, "artist");
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const iniBuyer1TokenAmount = await nft.balanceOf(buyer1Address, token1Id);
         const iniAvailablePositions = await market.fetchAllAvailablePositions();
@@ -228,9 +229,9 @@ describe("************ Marketplace ******************", () => {
         console.log("\tNFT bought");
 
         // Final data
-        const endSellerBalance = await getBalance(sellerAddress, "seller");
-        const endBuyer1Balance = await getBalance(buyer1Address, "buyer1");
-        const endArtistBalance = await getBalance(artistAddress, "artist");
+        const endSellerBalance = await getBalance(reefToken, sellerAddress, "seller");
+        const endBuyer1Balance = await getBalance(reefToken, buyer1Address, "buyer1");
+        const endArtistBalance = await getBalance(reefToken, artistAddress, "artist");
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const endBuyer1TokenAmount = await nft.balanceOf(buyer1Address, token1Id);
         const royaltiesAmount = (salePrice * royaltyValue) / 10000;
@@ -240,56 +241,54 @@ describe("************ Marketplace ******************", () => {
 
         // Evaluate results
         expect(endBuyer1TokenAmount - iniBuyer1TokenAmount).to.equal(1);
-        expect(Math.round(endBuyer1Balance))
-            .to.lte(Math.round(iniBuyer1Balance - formatBigNumber(salePrice)))
-            .gt(
-                Math.round(
-                    iniBuyer1Balance - formatBigNumber(salePrice) - formatBigNumber(maxGasFee)
-                )
-            );
-        expect(Math.round(endArtistBalance)).to.equal(
-            Math.round(iniArtistBalance + formatBigNumber(royaltiesAmount))
-        );
+        expect(endBuyer1Balance)
+            .to.lte(iniBuyer1Balance - formatBigNumber(salePrice))
+            .gt(iniBuyer1Balance - formatBigNumber(salePrice) - formatBigNumber(maxGasFee));
+        expect(endArtistBalance).to.equal(iniArtistBalance + formatBigNumber(royaltiesAmount));
 
-        expect(Number(endOwnerMarketBalance)).to.equal(
-            Number(iniOwnerMarketBalance + marketFeeAmount)
+        expect(formatBigNumber(endOwnerMarketBalance)).to.equal(
+            formatBigNumber(iniOwnerMarketBalance) + formatBigNumber(marketFeeAmount)
         );
-        expect(Math.round(endSellerBalance)).to.equal(
-            Math.round(
-                iniSellerBalance +
-                    formatBigNumber(salePrice) -
-                    formatBigNumber(royaltiesAmount) -
-                    formatBigNumber(marketFeeAmount)
-            )
+        expect(endSellerBalance).to.equal(
+            iniSellerBalance +
+                formatBigNumber(salePrice) -
+                formatBigNumber(royaltiesAmount) -
+                formatBigNumber(marketFeeAmount)
         );
 
         expect(item.nftContract).to.equal(nftContractAddress);
         expect(Number(item.tokenId)).to.equal(token1Id);
         expect(item.sales[0].seller).to.equal(sellerAddress);
         expect(item.sales[0].buyer).to.equal(buyer1Address);
-        expect(Number(item.sales[0].price)).to.equal(Number(salePrice));
+        expect(formatBigNumber(item.sales[0].price)).to.equal(formatBigNumber(salePrice));
         expect(endAvailablePositions.length - iniAvailablePositions.length).to.equal(1);
     });
 
     it("Should allow market owner to retrieve fees", async () => {
-        const iniOwnerBalance = await getBalance(ownerAddress, "owner");
+        const iniOwnerBalance = await getBalance(reefToken, ownerAddress, "owner");
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
-        const iniMarketBalance = await getBalance(marketContractAddress, "market");
+        const iniMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
 
         console.log("\towner withdrawing balance...");
         await market.connect(owner).withdraw();
         console.log("\tWithdrawing completed.");
-        const endOwnerBalance = await getBalance(ownerAddress, "owner");
+        const endOwnerBalance = await getBalance(reefToken, ownerAddress, "owner");
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
-        const endMarketBalance = await getBalance(marketContractAddress, "market");
+        const endMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
+        console.log("iniMarketBalance", iniMarketBalance);
+        console.log("endMarketBalance", endMarketBalance);
+        console.log(
+            "iniOwnerMarkeformatBigNumber(iniOwnerMarketBalance)tBalance",
+            formatBigNumber(iniOwnerMarketBalance)
+        );
         const diff = iniMarketBalance - endMarketBalance - formatBigNumber(iniOwnerMarketBalance);
         console.log("diff", diff);
-        expect(diff).to.lt(0.1); // TODO should be zero, but getting a difference of ~0.064
+        expect(diff).to.lt(0.1); // TODO should be zero, but getting a difference of ~0.064. Changing the fee amount gives similar results
         // expect(formatBigNumber(iniOwnerMarketBalance)).to.equal(iniMarketBalance - endMarketBalance);
         expect(formatBigNumber(iniOwnerMarketBalance))
             .to.gte(endOwnerBalance - iniOwnerBalance)
             .to.lt(endOwnerBalance - iniOwnerBalance + marketFee);
-        expect(Number(endOwnerMarketBalance)).to.equal(0);
+        expect(formatBigNumber(endOwnerMarketBalance)).to.equal(0);
     });
 
     it("Should allow to end sale only to seller", async () => {
@@ -371,42 +370,4 @@ describe("************ Marketplace ******************", () => {
         expect(Number(endSellerTokenPosition.amount)).to.equal(90);
         expect(Number(endBuyerTokenPosition.amount)).to.equal(10);
     });
-
-    async function getBalance(address, name) {
-        const balance = await reefToken.balanceOf(address);
-        const balanceFormatted = formatBigNumber(balance);
-        console.log(`\t\tBalance of ${name}:`, balanceFormatted);
-
-        return balanceFormatted;
-    }
-
-    function formatBigNumber(bigNumber) {
-        return Number(Number(ethers.utils.formatUnits(bigNumber.toString(), "ether")).toFixed(4));
-    }
-
-    async function throwsException(promise, message) {
-        try {
-            await promise;
-            assert(false);
-        } catch (error) {
-            expect(error.message).contains(message);
-        }
-    }
-
-    async function logEvents(promise) {
-        const tx = await promise;
-        const receipt = await tx.wait();
-
-        let msg = "No events for this tx";
-        if (receipt.events) {
-            const eventsArgs = [];
-            receipt.events.forEach((event) => {
-                if (event.args) {
-                    eventsArgs.push(event.args);
-                }
-            });
-            msg = eventsArgs;
-        }
-        console.log(msg);
-    }
 });

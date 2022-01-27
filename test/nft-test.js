@@ -1,4 +1,5 @@
 const { expect, assert } = require("chai");
+const { throwsException } = require("./util");
 
 describe("************ NFT ******************", () => {
     let nft,
@@ -73,31 +74,47 @@ describe("************ NFT ******************", () => {
 
         const tx2 = await nft
             .connect(creator)
-            .mint(creatorAddress, 99, "https://fake-uri-2.com", artistAddress, royaltyValue, false);
+            .mintBatch(
+                creatorAddress,
+                [99, 10],
+                ["https://fake-uri-2.com", "https://fake-uri-3.com"],
+                [artistAddress, artistAddress],
+                [royaltyValue, royaltyValue],
+                [false, false]
+            );
         const receipt2 = await tx2.wait();
-        token2Id = receipt2.events[0].args[3].toNumber();
-
-        const tx3 = await nft
-            .connect(creator)
-            .mint(creatorAddress, 10, "https://fake-uri-3.com", artistAddress, royaltyValue, false);
-        const receipt3 = await tx3.wait();
-        token3Id = receipt3.events[0].args[3].toNumber();
+        token2Id = receipt2.events[0].args[3][0].toNumber();
+        token3Id = receipt2.events[0].args[3][1].toNumber();
 
         console.log(`\tNFTs created with tokenIds ${token1Id}, ${token2Id} and ${token3Id}`);
 
         // End data
-        const royaltyInfo = await nft.royaltyInfo(token1Id, salePrice);
+        const royaltyInfo1 = await nft.royaltyInfo(token1Id, salePrice);
+        const royaltyInfo2 = await nft.royaltyInfo(token2Id, salePrice);
+        const royaltyInfo3 = await nft.royaltyInfo(token3Id, salePrice);
+        const token1Supply = await nft.getTokenSupply(token1Id);
         const token2Supply = await nft.getTokenSupply(token2Id);
+        const token3Supply = await nft.getTokenSupply(token3Id);
 
         // Evaluate results
-        expect(royaltyInfo.receiver).to.equal(artistAddress);
-        expect(Number(royaltyInfo.royaltyAmount)).to.equal((salePrice * royaltyValue) / 10000);
+        expect(royaltyInfo1.receiver).to.equal(artistAddress);
+        expect(royaltyInfo2.receiver).to.equal(artistAddress);
+        expect(royaltyInfo3.receiver).to.equal(artistAddress);
+        expect(Number(royaltyInfo1.royaltyAmount)).to.equal((salePrice * royaltyValue) / 10000);
+        expect(Number(royaltyInfo2.royaltyAmount)).to.equal((salePrice * royaltyValue) / 10000);
+        expect(Number(royaltyInfo3.royaltyAmount)).to.equal((salePrice * royaltyValue) / 10000);
         expect(Number(await nft.balanceOf(creatorAddress, token1Id))).to.equal(1);
         expect(Number(await nft.balanceOf(creatorAddress, token2Id))).to.equal(99);
+        expect(Number(await nft.balanceOf(creatorAddress, token3Id))).to.equal(10);
         assert(await nft.hasMutableURI(token1Id));
         expect(!(await nft.hasMutableURI(token2Id)));
+        expect(await nft.hasMutableURI(token3Id));
         expect(await nft.uri(token1Id)).to.equal("https://fake-uri-1.com");
+        expect(await nft.uri(token2Id)).to.equal("https://fake-uri-2.com");
+        expect(await nft.uri(token3Id)).to.equal("https://fake-uri-3.com");
+        expect(Number(token1Supply)).to.equal(1);
         expect(Number(token2Supply)).to.equal(99);
+        expect(Number(token3Supply)).to.equal(10);
     });
 
     it("Should transfer single token", async () => {
@@ -127,15 +144,11 @@ describe("************ NFT ******************", () => {
         console.log("\tTokens transfered");
 
         // Final data
-        [
-            creatorT2Amount,
-            recipientT2Amount,
-            creatorT3Amount,
-            recipientT3Amount,
-        ] = await nft.balanceOfBatch(
-            [creatorAddress, recipientAddress, creatorAddress, recipientAddress],
-            [token2Id, token2Id, token3Id, token3Id]
-        );
+        [creatorT2Amount, recipientT2Amount, creatorT3Amount, recipientT3Amount] =
+            await nft.balanceOfBatch(
+                [creatorAddress, recipientAddress, creatorAddress, recipientAddress],
+                [token2Id, token2Id, token3Id, token3Id]
+            );
         const token2Owners = await nft.getOwners(token2Id);
 
         expect(Number(creatorT2Amount)).to.equal(90);
@@ -240,30 +253,4 @@ describe("************ NFT ******************", () => {
         expect(iniToken2Supply - endToken2Supply).to.equal(10);
         expect(iniToken3Supply - endToken3Supply).to.equal(1);
     });
-
-    async function throwsException(promise, message) {
-        try {
-            await promise;
-            assert(false);
-        } catch (error) {
-            expect(error.message).contains(message);
-        }
-    }
-
-    async function logEvents(promise) {
-        const tx = await promise;
-        const receipt = await tx.wait();
-
-        let msg = "No events for this tx";
-        if (receipt.events) {
-            const eventsArgs = [];
-            receipt.events.forEach((event) => {
-                if (event.args) {
-                    eventsArgs.push(event.args);
-                }
-            });
-            msg = eventsArgs;
-        }
-        console.log(msg);
-    }
 });

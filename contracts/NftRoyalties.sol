@@ -11,9 +11,9 @@ contract NftRoyalties {
     }
 
     // bytes4(keccak256("royaltyInfo(uint256,uint256)")) == 0x2a55205a
-    bytes4 internal constant INTERFACE_ID_ERC2981 = 0x2a55205a;
+    bytes4 internal constant _INTERFACE_ID_ERC2981 = 0x2a55205a;
 
-    mapping(uint256 => RoyaltyInfo) private royalties;
+    mapping(uint256 => RoyaltyInfo) private _royalties;
 
     /**
      * Returns royalties recipient and amount for a certain token and sale value,
@@ -24,7 +24,7 @@ contract NftRoyalties {
         view
         returns (address receiver, uint256 royaltyAmount)
     {
-        RoyaltyInfo memory royalty = royalties[tokenId];
+        RoyaltyInfo memory royalty = _royalties[tokenId];
         return (royalty.recipient, (saleValue * royalty.amount) / 10000);
     }
 
@@ -36,10 +36,7 @@ contract NftRoyalties {
         address recipient,
         uint256 value
     ) internal {
-        require(
-            value <= 5000,
-            "NftRoyalties: Royalties value cannot be higher than 5000."
-        );
-        royalties[tokenId] = RoyaltyInfo(recipient, uint24(value));
+        require(value <= 5000, "NftRoyalties: Royalties value cannot be higher than 5000.");
+        _royalties[tokenId] = RoyaltyInfo(recipient, uint24(value));
     }
 }

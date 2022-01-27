@@ -13,18 +13,24 @@ This project has been created using the [Hardhat-reef-template](https://github.c
 
 Install all dependencies with `yarn`.
 
+## Compile contracts
+
+```bash
+yarn compile
+```
+
 ## Deploy contracts
 
 Deploy in testnet:
 
 ```bash
-yarn hardhat run scripts/deploy.js
+yarn deploy
 ```
 
 Deploy in mainnet:
 
 ```bash
-yarn hardhat run scripts/deploy.js --network reef_mainnet
+yarn deploy:mainnet
 ```
 
 ## Run tests
@@ -32,6 +38,8 @@ yarn hardhat run scripts/deploy.js --network reef_mainnet
 ```bash
 yarn test
 ```
+
+To reuse a contract already deployed, set its address in the _hardhat.config.js_ file, in the _contracts_ section. If no address is specified, a new contract will be deployed.
 
 ## Use account seeds
 

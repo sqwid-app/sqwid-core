@@ -1,7 +1,8 @@
-const { expect, assert } = require("chai");
+const { expect } = require("chai");
+const { formatBigNumber, getBalance, throwsException, delay } = require("./util");
 const ReefAbi = require("./ReefToken.json");
 
-describe.only("************ Auctions ******************", () => {
+describe("************ Auctions ******************", () => {
     let market,
         nft,
         owner,
@@ -70,12 +71,12 @@ describe.only("************ Auctions ******************", () => {
         if (!marketContractAddress || marketContractAddress == "") {
             // Deploy SqwidMarketplace contract
             console.log("\tdeploying Market contract...");
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
             const Market = await reef.getContractFactory("SqwidMarketplace", owner);
             market = await Market.deploy(marketFee);
             await market.deployed();
             marketContractAddress = market.address;
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
 
             if (nftContractAddress) {
                 const NFT = await reef.getContractFactory("SqwidERC1155", owner);
@@ -92,7 +93,7 @@ describe.only("************ Auctions ******************", () => {
         if (!nftContractAddress || nftContractAddress == "") {
             // Deploy SqwidERC1155 contract
             console.log("\tdeploying NFT contract...");
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
             const NFT = await reef.getContractFactory("SqwidERC1155", owner);
             const loanContractAddress = config.contracts.loan
                 ? config.contracts.loan
@@ -100,7 +101,7 @@ describe.only("************ Auctions ******************", () => {
             nft = await NFT.deploy(marketContractAddress, loanContractAddress);
             await nft.deployed();
             nftContractAddress = nft.address;
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
         } else {
             // Get deployed contract
             const NFT = await reef.getContractFactory("SqwidERC1155", owner);
@@ -132,12 +133,12 @@ describe.only("************ Auctions ******************", () => {
 
         // Create auction
         console.log("\tseller creating auction...");
-        await getBalance(sellerAddress, "seller");
+        await getBalance(reefToken, sellerAddress, "seller");
         await market
             .connect(seller)
             .createNewItemAuction(nftContractAddress, tokenId, tokensAmount, numMinutes, minBid);
         console.log("\tauction created.");
-        await getBalance(sellerAddress, "seller");
+        await getBalance(reefToken, sellerAddress, "seller");
 
         // Final data
         const endAuctions = await market.fetchAllAuctions();
@@ -159,7 +160,7 @@ describe.only("************ Auctions ******************", () => {
         expect(deadline)
             .to.lt(new Date(new Date().getTime() + 1000 * 60 * (numMinutes + 1)))
             .gt(new Date());
-        expect(Number(auction.auctionData.minBid)).equals(Number(minBid));
+        expect(formatBigNumber(auction.auctionData.minBid)).equals(formatBigNumber(minBid));
         expect(Number(auction.marketFee)).to.equal(Number(marketFee));
     });
 
@@ -173,8 +174,8 @@ describe.only("************ Auctions ******************", () => {
 
     it("Should create bid", async () => {
         // Initial data
-        const iniBuyer1Balance = await getBalance(buyer1Address, "buyer1");
-        const iniMarketBalance = await getBalance(marketContractAddress, "market");
+        const iniBuyer1Balance = await getBalance(reefToken, buyer1Address, "buyer1");
+        const iniMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
 
         // Creates bid
         console.log("\tbuyer1 creating bid...");
@@ -182,23 +183,19 @@ describe.only("************ Auctions ******************", () => {
         console.log("\tbid created");
 
         // Final data
-        const endBuyer1Balance = await getBalance(buyer1Address, "buyer1");
-        const endMarketBalance = await getBalance(marketContractAddress, "market");
+        const endBuyer1Balance = await getBalance(reefToken, buyer1Address, "buyer1");
+        const endMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
         const oldDeadline = deadline;
         const auctionData = (await market.fetchPosition(auctionId)).auctionData;
         deadline = new Date(auctionData.deadline * 1000);
 
         // Evaluate results
         expect(deadline.getTime()).equals(oldDeadline.getTime());
-        expect(Number(auctionData.highestBid)).equals(Number(bid2Amount));
+        expect(formatBigNumber(auctionData.highestBid)).equals(formatBigNumber(bid2Amount));
         expect(auctionData.highestBidder).equals(buyer1Address);
-        expect(Math.round(endBuyer1Balance))
-            .to.lte(Math.round(iniBuyer1Balance - formatBigNumber(bid2Amount)))
-            .gt(
-                Math.round(
-                    iniBuyer1Balance - formatBigNumber(bid2Amount) - formatBigNumber(maxGasFee)
-                )
-            );
+        expect(endBuyer1Balance)
+            .to.lte(iniBuyer1Balance - formatBigNumber(bid2Amount))
+            .gt(iniBuyer1Balance - formatBigNumber(bid2Amount) - formatBigNumber(maxGasFee));
         expect(endMarketBalance)
             .to.gte(iniMarketBalance + formatBigNumber(bid2Amount))
             .lt(iniMarketBalance + formatBigNumber(bid2Amount) + 1);
@@ -225,15 +222,17 @@ describe.only("************ Auctions ******************", () => {
 
         // Evaluate results
         expect(deadline.getTime()).equals(oldDeadline.getTime());
-        expect(Number(auctionData.highestBid)).equals(Number(bid2Amount.add(bid3Amount)));
+        expect(formatBigNumber(auctionData.highestBid)).equals(
+            formatBigNumber(bid2Amount.add(bid3Amount))
+        );
         expect(auctionData.highestBidder).equals(buyer1Address);
     });
 
     it("Should extend auction deadline", async () => {
         // Initial data
-        const iniBuyer1Balance = await getBalance(buyer1Address, "buyer1");
-        const iniBuyer2Balance = await getBalance(buyer2Address, "buyer2");
-        const iniMarketBalance = await getBalance(marketContractAddress, "market");
+        const iniBuyer1Balance = await getBalance(reefToken, buyer1Address, "buyer1");
+        const iniBuyer2Balance = await getBalance(reefToken, buyer2Address, "buyer2");
+        const iniMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
 
         // Wait until 10 minutes before deadline
         const timeUntilDeadline = deadline - new Date();
@@ -251,9 +250,9 @@ describe.only("************ Auctions ******************", () => {
         console.log("\tbid created");
 
         // Final data
-        const endBuyer1Balance = await getBalance(buyer1Address, "buyer1");
-        const endBuyer2Balance = await getBalance(buyer2Address, "buyer2");
-        const endMarketBalance = await getBalance(marketContractAddress, "market");
+        const endBuyer1Balance = await getBalance(reefToken, buyer1Address, "buyer1");
+        const endBuyer2Balance = await getBalance(reefToken, buyer2Address, "buyer2");
+        const endMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
         const oldDeadline = deadline;
         const auctionData = (await market.fetchPosition(auctionId)).auctionData;
         deadline = new Date(auctionData.deadline * 1000);
@@ -263,30 +262,26 @@ describe.only("************ Auctions ******************", () => {
 
         // Evaluate results
         expect(deadline.getTime()).gt(oldDeadline.getTime());
-        expect(Number(auctionData.highestBid)).equals(Number(bid4Amount));
+        expect(formatBigNumber(auctionData.highestBid)).equals(formatBigNumber(bid4Amount));
         expect(auctionData.highestBidder).equals(buyer2Address);
-        expect(Math.round(endBuyer1Balance)).to.equals(
-            Math.round(iniBuyer1Balance + formatBigNumber(bid2Amount) + formatBigNumber(bid3Amount))
+        expect(endBuyer1Balance).to.equals(
+            iniBuyer1Balance + formatBigNumber(bid2Amount) + formatBigNumber(bid3Amount)
         );
-        expect(Math.round(endBuyer2Balance))
-            .to.lte(Math.round(iniBuyer2Balance - formatBigNumber(bid4Amount)))
-            .gt(
-                Math.round(
-                    iniBuyer2Balance - formatBigNumber(bid4Amount) - formatBigNumber(maxGasFee)
-                )
-            );
+        expect(endBuyer2Balance)
+            .to.lte(iniBuyer2Balance - formatBigNumber(bid4Amount))
+            .gt(iniBuyer2Balance - formatBigNumber(bid4Amount) - formatBigNumber(maxGasFee));
         expect(endMarketBalance)
             .to.gte(iniMarketBalance + bidIncrease)
             .lt(iniMarketBalance + bidIncrease + 1);
     });
 
-    it.only("Should end auction with bids", async () => {
+    it("Should end auction with bids", async () => {
         // Initial data
-        const iniSellerBalance = await getBalance(sellerAddress, "seller");
-        const iniArtistBalance = await getBalance(artistAddress, "artist");
+        const iniSellerBalance = await getBalance(reefToken, sellerAddress, "seller");
+        const iniArtistBalance = await getBalance(reefToken, artistAddress, "artist");
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
-        const iniMarketBalance = await getBalance(marketContractAddress, "market");
-        await getBalance(buyer1Address, "buyer1");
+        const iniMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
+        await getBalance(reefToken, buyer1Address, "buyer1");
         const auctions = await market.fetchAllAuctions();
         const iniNumAuctions = auctions.length;
         const auction = auctions.at(-1);
@@ -315,47 +310,51 @@ describe.only("************ Auctions ******************", () => {
 
         // Final data
         const endItem = await market.fetchItem(itemId);
-        const endSellerBalance = await getBalance(sellerAddress, "seller");
-        const endArtistBalance = await getBalance(artistAddress, "artist");
+        const endSellerBalance = await getBalance(reefToken, sellerAddress, "seller");
+        const endArtistBalance = await getBalance(reefToken, artistAddress, "artist");
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
-        const endMarketBalance = await getBalance(marketContractAddress, "market");
+        const endMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
         const royaltiesAmount = (bid4Amount * royaltyValue) / 10000;
         const marketFeeAmount = ((bid4Amount - royaltiesAmount) * marketFee) / 10000;
-        await getBalance(buyer1Address, "buyer1");
+        await getBalance(reefToken, buyer1Address, "buyer1");
         const endBuyer2TokenAmount = await nft.balanceOf(buyer2Address, tokenId);
         const endNumAuctions = (await market.fetchAllAuctions()).length;
 
         // Evaluate results
         expect(endItem.sales[0].seller).to.equal(sellerAddress);
         expect(endItem.sales[0].buyer).to.equal(buyer2Address);
-        expect(Number(endItem.sales[0].price)).to.equal(Number(bid4Amount));
+        expect(formatBigNumber(endItem.sales[0].price)).to.equal(formatBigNumber(bid4Amount));
         expect(endBuyer2TokenAmount - iniBuyer2TokenAmount).to.equal(tokensAmount);
         expect(iniNumAuctions - endNumAuctions).to.equal(1);
-        expect(Math.round(endArtistBalance)).to.equal(
-            Math.round(iniArtistBalance + formatBigNumber(royaltiesAmount))
-        );
+        expect(endArtistBalance).to.equal(iniArtistBalance + formatBigNumber(royaltiesAmount));
         expect(formatBigNumber(endOwnerMarketBalance)).to.equal(
             formatBigNumber(iniOwnerMarketBalance) + formatBigNumber(marketFeeAmount)
         );
-        expect(Math.round(endSellerBalance)).to.equal(
-            Math.round(
-                iniSellerBalance +
-                    formatBigNumber(bid4Amount) -
-                    formatBigNumber(royaltiesAmount) -
-                    formatBigNumber(marketFeeAmount)
-            )
+        expect(endSellerBalance).to.equal(
+            iniSellerBalance +
+                formatBigNumber(bid4Amount) -
+                formatBigNumber(royaltiesAmount) -
+                formatBigNumber(marketFeeAmount)
         );
+        // const diff =
+        //     endMarketBalance -
+        //     (iniMarketBalance -
+        //         formatBigNumber(bid4Amount) +
+        //         formatBigNumber(endOwnerMarketBalance) -
+        //         formatBigNumber(iniOwnerMarketBalance));
+        // console.log("diff", diff);
+        // expect(diff).to.lt(0.1); // TODO should be zero, but getting a difference of ~0.064
         expect(endMarketBalance).to.equal(
             iniMarketBalance -
                 formatBigNumber(bid4Amount) +
                 formatBigNumber(endOwnerMarketBalance) -
                 formatBigNumber(iniOwnerMarketBalance)
-        ); // TODO Here there is also a discrepancy of about ~0.064
+        );
     });
 
-    it.only("Should end auction without bids", async () => {
+    it.skip("Should end auction without bids", async () => {
         // Initial data
-        const iniBuyer2Balance = await getBalance(buyer2Address, "buyer1");
+        const iniBuyer2Balance = await getBalance(reefToken, buyer2Address, "buyer1");
         const iniBuyer2TokenAmount = Number(await nft.balanceOf(buyer2Address, tokenId));
         const iniNumAuctions = (await market.fetchAllAuctions()).length;
 
@@ -369,7 +368,7 @@ describe.only("************ Auctions ******************", () => {
         const receipt = await tx.wait();
         auctionId = receipt.events[1].args[0];
         console.log("\tauction created.");
-        await getBalance(buyer2Address, "buyer2");
+        await getBalance(reefToken, buyer2Address, "buyer2");
 
         // Try to end auction
         console.log("\tending auction...");
@@ -395,55 +394,15 @@ describe.only("************ Auctions ******************", () => {
         console.log("\tauction ended.");
 
         // Final data
-        const endBuyer2Balance = await getBalance(buyer2Address, "buyer2");
+        const endBuyer2Balance = await getBalance(reefToken, buyer2Address, "buyer2");
         const endBuyer2TokenAmount = Number(await nft.balanceOf(buyer2Address, tokenId));
         const endNumAuctions = (await market.fetchAllAuctions()).length;
 
         // Evaluate results
         expect(endBuyer2Balance)
             .to.lte(iniBuyer2Balance)
-            .to.gt(iniBuyer2Balance - Number(maxGasFee));
+            .to.gt(iniBuyer2Balance - formatBigNumber(maxGasFee));
         expect(endBuyer2TokenAmount).to.equal(iniBuyer2TokenAmount);
         expect(endNumAuctions).to.equal(iniNumAuctions);
     });
-
-    async function getBalance(address, name) {
-        const balance = await reefToken.balanceOf(address);
-        const balanceFormatted = formatBigNumber(balance);
-        console.log(`\t\tBalance of ${name}:`, balanceFormatted);
-
-        return balanceFormatted;
-    }
-
-    function formatBigNumber(bigNumber) {
-        return Number(Number(ethers.utils.formatUnits(bigNumber.toString(), "ether")).toFixed(4));
-    }
-
-    async function throwsException(promise, message) {
-        try {
-            await promise;
-            assert(false);
-        } catch (error) {
-            expect(error.message).contains(message);
-        }
-    }
-
-    const delay = (ms) => new Promise((res) => setTimeout(res, ms));
-
-    async function logEvents(promise) {
-        const tx = await promise;
-        const receipt = await tx.wait();
-
-        let msg = "No events for this tx";
-        if (receipt.events) {
-            const eventsArgs = [];
-            receipt.events.forEach((event) => {
-                if (event.args) {
-                    eventsArgs.push(event.args);
-                }
-            });
-            msg = eventsArgs;
-        }
-        console.log(msg);
-    }
 });

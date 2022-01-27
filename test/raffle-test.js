@@ -1,4 +1,5 @@
-const { expect, assert } = require("chai");
+const { expect } = require("chai");
+const { formatBigNumber, getBalance, throwsException, delay } = require("./util");
 const ReefAbi = require("./ReefToken.json");
 
 describe("************ Raffles ******************", () => {
@@ -67,12 +68,12 @@ describe("************ Raffles ******************", () => {
         if (!marketContractAddress || marketContractAddress == "") {
             // Deploy SqwidMarketplace contract
             console.log("\tdeploying Market contract...");
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
             const Market = await reef.getContractFactory("SqwidMarketplace", owner);
             market = await Market.deploy(marketFee);
             await market.deployed();
             marketContractAddress = market.address;
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
 
             if (nftContractAddress) {
                 const NFT = await reef.getContractFactory("SqwidERC1155", owner);
@@ -89,12 +90,12 @@ describe("************ Raffles ******************", () => {
         if (!nftContractAddress || nftContractAddress == "") {
             // Deploy SqwidERC1155 contract
             console.log("\tdeploying NFT contract...");
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
             const NFT = await reef.getContractFactory("SqwidERC1155", owner);
             nft = await NFT.deploy(marketContractAddress);
             await nft.deployed();
             nftContractAddress = nft.address;
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
         } else {
             // Get deployed contract
             const NFT = await reef.getContractFactory("SqwidERC1155", owner);
@@ -127,12 +128,12 @@ describe("************ Raffles ******************", () => {
 
         // Create raffle
         console.log("\tseller creating raffle...");
-        await getBalance(sellerAddress, "seller");
+        await getBalance(reefToken, sellerAddress, "seller");
         await market
             .connect(seller)
             .createNewNftRaffle(nftContractAddress, tokenId, tokensAmount, numMinutes);
         console.log("\traffle created.");
-        await getBalance(sellerAddress, "seller");
+        await getBalance(reefToken, sellerAddress, "seller");
 
         // Final data
         const endRaffles = await market.fetchAllRaffles();
@@ -162,9 +163,9 @@ describe("************ Raffles ******************", () => {
 
     it("Should add entries to the raffle", async () => {
         // Initial data
-        const iniBuyer1Balance = await getBalance(buyer1Address, "buyer1");
-        const iniBuyer2Balance = await getBalance(buyer2Address, "buyer2");
-        const iniMarketBalance = await getBalance(marketContractAddress, "market");
+        const iniBuyer1Balance = await getBalance(reefToken, buyer1Address, "buyer1");
+        const iniBuyer2Balance = await getBalance(reefToken, buyer2Address, "buyer2");
+        const iniMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
 
         // Add entries
         console.log("\tbuyer1 enters NFT raffle...");
@@ -175,29 +176,21 @@ describe("************ Raffles ******************", () => {
         console.log("\tbuyer2 entry created");
 
         // Final data
-        const endBuyer1Balance = await getBalance(buyer1Address, "buyer1");
-        const endBuyer2Balance = await getBalance(buyer2Address, "buyer2");
-        const endMarketBalance = await getBalance(marketContractAddress, "market");
+        const endBuyer1Balance = await getBalance(reefToken, buyer1Address, "buyer1");
+        const endBuyer2Balance = await getBalance(reefToken, buyer2Address, "buyer2");
+        const endMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
         const raffle = await market.fetchPosition(raffleId);
 
         // Evaluate results
-        expect(Math.round(endBuyer1Balance))
-            .to.lte(Math.round(iniBuyer1Balance - formatBigNumber(buyer1RaffleAmount)))
+        expect(endBuyer1Balance)
+            .to.lte(iniBuyer1Balance - formatBigNumber(buyer1RaffleAmount))
             .gt(
-                Math.round(
-                    iniBuyer1Balance -
-                        formatBigNumber(buyer1RaffleAmount) -
-                        formatBigNumber(maxGasFee)
-                )
+                iniBuyer1Balance - formatBigNumber(buyer1RaffleAmount) - formatBigNumber(maxGasFee)
             );
-        expect(Math.round(endBuyer2Balance))
-            .to.lte(Math.round(iniBuyer2Balance - formatBigNumber(buyer2RaffleAmount)))
+        expect(endBuyer2Balance)
+            .to.lte(iniBuyer2Balance - formatBigNumber(buyer2RaffleAmount))
             .gt(
-                Math.round(
-                    iniBuyer2Balance -
-                        formatBigNumber(buyer2RaffleAmount) -
-                        formatBigNumber(maxGasFee)
-                )
+                iniBuyer2Balance - formatBigNumber(buyer2RaffleAmount) - formatBigNumber(maxGasFee)
             );
         expect(endMarketBalance)
             .to.gte(
@@ -229,11 +222,11 @@ describe("************ Raffles ******************", () => {
     it("Should end raffle and send NFT to winner", async () => {
         // Initial data
         const iniRaffles = await market.fetchAllRaffles();
-        const iniSellerBalance = await getBalance(sellerAddress, "seller");
-        const iniArtistBalance = await getBalance(artistAddress, "artist");
+        const iniSellerBalance = await getBalance(reefToken, sellerAddress, "seller");
+        const iniArtistBalance = await getBalance(reefToken, artistAddress, "artist");
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
-        const iniMarketBalance = await getBalance(marketContractAddress, "market");
-        await getBalance(helperAddress, "helper");
+        const iniMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
+        await getBalance(reefToken, helperAddress, "helper");
         const iniBuyer1TokenAmount = Number(await nft.balanceOf(buyer1Address, tokenId));
         const iniBuyer2TokenAmount = Number(await nft.balanceOf(buyer2Address, tokenId));
         const iniMarketTokenAmount = Number(await nft.balanceOf(marketContractAddress, tokenId));
@@ -255,14 +248,14 @@ describe("************ Raffles ******************", () => {
         // Final data
         const endRaffles = await market.fetchAllRaffles();
         const endItem = await market.fetchItem(itemId);
-        const endSellerBalance = await getBalance(sellerAddress, "seller");
-        const endArtistBalance = await getBalance(artistAddress, "artist");
+        const endSellerBalance = await getBalance(reefToken, sellerAddress, "seller");
+        const endArtistBalance = await getBalance(reefToken, artistAddress, "artist");
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
-        const endMarketBalance = await getBalance(marketContractAddress, "market");
+        const endMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
         const royaltiesAmount = (buyer1RaffleAmount.add(buyer2RaffleAmount) * royaltyValue) / 10000;
         const marketFeeAmount =
             ((buyer1RaffleAmount.add(buyer2RaffleAmount) - royaltiesAmount) * marketFee) / 10000;
-        await getBalance(helperAddress, "helper");
+        await getBalance(reefToken, helperAddress, "helper");
         const endBuyer1TokenAmount = Number(await nft.balanceOf(buyer1Address, tokenId));
         const endBuyer2TokenAmount = Number(await nft.balanceOf(buyer2Address, tokenId));
         const endMarketTokenAmount = Number(await nft.balanceOf(marketContractAddress, tokenId));
@@ -275,37 +268,27 @@ describe("************ Raffles ******************", () => {
                 iniBuyer1TokenAmount -
                 iniBuyer2TokenAmount
         ).to.equal(tokensAmount);
-        expect(Math.round(endArtistBalance)).to.equal(
-            Math.round(iniArtistBalance + formatBigNumber(royaltiesAmount))
-        );
+        expect(endArtistBalance).to.equal(iniArtistBalance + formatBigNumber(royaltiesAmount));
         expect(formatBigNumber(endOwnerMarketBalance)).to.equal(
             formatBigNumber(iniOwnerMarketBalance) + formatBigNumber(marketFeeAmount)
         );
-        expect(Math.round(endSellerBalance)).to.equal(
-            Math.round(
-                iniSellerBalance +
-                    formatBigNumber(buyer1RaffleAmount) +
-                    formatBigNumber(buyer2RaffleAmount) -
-                    formatBigNumber(royaltiesAmount) -
-                    formatBigNumber(marketFeeAmount)
-            )
+        expect(endSellerBalance).to.equal(
+            iniSellerBalance +
+                formatBigNumber(buyer1RaffleAmount) +
+                formatBigNumber(buyer2RaffleAmount) -
+                formatBigNumber(royaltiesAmount) -
+                formatBigNumber(marketFeeAmount)
         );
-        console.log(endMarketBalance);
-        console.log(iniMarketBalance);
-        console.log(formatBigNumber(buyer1RaffleAmount));
-        console.log(formatBigNumber(buyer2RaffleAmount));
-        console.log(formatBigNumber(marketFeeAmount));
         expect(endMarketBalance).to.equal(
             iniMarketBalance -
                 formatBigNumber(buyer1RaffleAmount) -
                 formatBigNumber(buyer2RaffleAmount) +
                 formatBigNumber(marketFeeAmount)
         );
-
         expect(endItem.sales[0].seller).to.equal(sellerAddress);
         expect(endItem.sales[0].buyer).to.be.oneOf([buyer1Address, buyer2Address]);
-        expect(Number(endItem.sales[0].price)).to.equal(
-            Number(buyer1RaffleAmount.add(buyer2RaffleAmount))
+        expect(formatBigNumber(endItem.sales[0].price)).to.equal(
+            formatBigNumber(buyer1RaffleAmount.add(buyer2RaffleAmount))
         );
         expect(iniRaffles.length - endRaffles.length).to.equal(1);
     });
@@ -358,14 +341,14 @@ describe("************ Raffles ******************", () => {
 
         // Create raffle
         console.log("\tseller creating raffle...");
-        await getBalance(sellerAddress, "seller");
+        await getBalance(reefToken, sellerAddress, "seller");
         const tx2 = await market
             .connect(seller)
             .createNewNftRaffle(nftContractAddress, tokenId, tokensAmount, numMinutes);
         const receipt2 = await tx2.wait();
         raffleId = receipt2.events[3].args[0];
         console.log(`\traffle created with id ${raffleId}`);
-        await getBalance(sellerAddress, "seller");
+        await getBalance(reefToken, sellerAddress, "seller");
         const midSellerPositions = await market.connect(seller).fetchMyPositions();
         const midTokenPositions = midSellerPositions.filter((pos) => pos.item.tokenId == tokenId);
 
@@ -396,44 +379,4 @@ describe("************ Raffles ******************", () => {
         expect(endTokenPositions.length).to.equal(1);
         expect(endTokenPositions[0].state).to.equal(0); // Avalilable = 0
     });
-
-    async function getBalance(address, name) {
-        const balance = await reefToken.balanceOf(address);
-        const balanceFormatted = formatBigNumber(balance);
-        console.log(`\t\tBalance of ${name}:`, balanceFormatted);
-
-        return balanceFormatted;
-    }
-
-    function formatBigNumber(bigNumber) {
-        return Number(Number(ethers.utils.formatUnits(bigNumber.toString(), "ether")).toFixed(4));
-    }
-
-    async function throwsException(promise, message) {
-        try {
-            await promise;
-            assert(false);
-        } catch (error) {
-            expect(error.message).contains(message);
-        }
-    }
-
-    const delay = (ms) => new Promise((res) => setTimeout(res, ms));
-
-    async function logEvents(promise) {
-        const tx = await promise;
-        const receipt = await tx.wait();
-
-        let msg = "No events for this tx";
-        if (receipt.events) {
-            const eventsArgs = [];
-            receipt.events.forEach((event) => {
-                if (event.args) {
-                    eventsArgs.push(event.args);
-                }
-            });
-            msg = eventsArgs;
-        }
-        console.log(msg);
-    }
 });

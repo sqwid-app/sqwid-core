@@ -12,6 +12,7 @@ artifacts
 !.yarn/versions
 .pnp.*
 
+*.code-workspace
 .secret
 .env
 seeds.json

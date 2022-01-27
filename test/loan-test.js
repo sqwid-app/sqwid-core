@@ -1,4 +1,5 @@
-const { expect, assert } = require("chai");
+const { expect } = require("chai");
+const { formatBigNumber, getBalance, throwsException, delay } = require("./util");
 const ReefAbi = require("./ReefToken.json");
 
 describe("************ Loans ******************", () => {
@@ -62,12 +63,12 @@ describe("************ Loans ******************", () => {
         if (!marketContractAddress || marketContractAddress == "") {
             // Deploy SqwidMarketplace contract
             console.log("\tdeploying Market contract...");
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
             const Market = await reef.getContractFactory("SqwidMarketplace", owner);
             market = await Market.deploy(250);
             await market.deployed();
             marketContractAddress = market.address;
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
 
             if (nftContractAddress) {
                 const NFT = await reef.getContractFactory("SqwidERC1155", owner);
@@ -84,12 +85,12 @@ describe("************ Loans ******************", () => {
         if (!nftContractAddress || nftContractAddress == "") {
             // Deploy SqwidERC1155 contract
             console.log("\tdeploying NFT contract...");
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
             const NFT = await reef.getContractFactory("SqwidERC1155", owner);
             nft = await NFT.deploy(marketContractAddress);
             await nft.deployed();
             nftContractAddress = nft.address;
-            await getBalance(ownerAddress, "owner");
+            await getBalance(reefToken, ownerAddress, "owner");
         } else {
             // Get deployed contract
             const NFT = await reef.getContractFactory("SqwidERC1155", owner);
@@ -122,7 +123,7 @@ describe("************ Loans ******************", () => {
 
         // Create loan proposal
         console.log("\tborrower creating loan proposal...");
-        await getBalance(borrowerAddress, "borrower");
+        await getBalance(reefToken, borrowerAddress, "borrower");
         const tx2 = await market
             .connect(borrower)
             .createNewNftLoan(
@@ -136,7 +137,7 @@ describe("************ Loans ******************", () => {
         const receipt2 = await tx2.wait();
         loan1Id = receipt2.events[3].args[0].toNumber();
         console.log(`\tLoan proposal created with id ${loan1Id}`);
-        await getBalance(borrowerAddress, "borrower");
+        await getBalance(reefToken, borrowerAddress, "borrower");
 
         // Final data
         const endLoans = await market.fetchAllLoans();
@@ -154,8 +155,8 @@ describe("************ Loans ******************", () => {
         expect(loan.owner).to.equal(borrowerAddress);
         expect(loan.item.creator).to.equal(borrowerAddress);
         expect(loan.state).to.equal(4); // Loan = 4
-        expect(Number(loan.loanData.loanAmount)).to.equal(Number(loanAmount));
-        expect(Number(loan.loanData.feeAmount)).to.equal(Number(feeAmount));
+        expect(formatBigNumber(loan.loanData.loanAmount)).to.equal(formatBigNumber(loanAmount));
+        expect(formatBigNumber(loan.loanData.feeAmount)).to.equal(formatBigNumber(feeAmount));
         expect(Number(loan.loanData.numMinutes)).to.equal(loanDuration);
         expect(parseInt(loan.loanData.lender, 16)).to.equal(0);
         expect(Number(loan.loanData.deadline)).to.equal(0);
@@ -190,18 +191,18 @@ describe("************ Loans ******************", () => {
     it("Should fund loan", async () => {
         // Create new loan proposal
         console.log("\tborrower creating loan proposal...");
-        await getBalance(borrowerAddress, "borrower");
+        await getBalance(reefToken, borrowerAddress, "borrower");
         const tx = await market
             .connect(borrower)
             .createItemLoan(item1Id, loanAmount, feeAmount, token1Amount, loanDuration);
         const receipt = await tx.wait();
         loan2Id = receipt.events[1].args[0];
         console.log(`\tloan proposal created with id ${loan2Id}`);
-        await getBalance(borrowerAddress, "borrower");
+        await getBalance(reefToken, borrowerAddress, "borrower");
 
         // Initial data
-        const iniLenderBalance = await getBalance(lenderAddress, "lender");
-        const iniBorrowerBalance = await getBalance(borrowerAddress, "borrower");
+        const iniLenderBalance = await getBalance(reefToken, lenderAddress, "lender");
+        const iniBorrowerBalance = await getBalance(reefToken, borrowerAddress, "borrower");
 
         // Fund proposal
         console.log("\tlender funding loan...");
@@ -210,14 +211,12 @@ describe("************ Loans ******************", () => {
 
         // Final data
         const loan = await market.fetchPosition(loan2Id);
-        const endLenderBalance = await getBalance(lenderAddress, "lender");
-        const endBorrowerBalance = await getBalance(borrowerAddress, "borrower");
+        const endLenderBalance = await getBalance(reefToken, lenderAddress, "lender");
+        const endBorrowerBalance = await getBalance(reefToken, borrowerAddress, "borrower");
         deadline = new Date(loan.loanData.deadline * 1000);
 
         // Evaluate results
-        expect(Math.round(endBorrowerBalance)).to.equals(
-            Math.round(iniBorrowerBalance + formatBigNumber(loanAmount))
-        );
+        expect(endBorrowerBalance).to.equals(iniBorrowerBalance + formatBigNumber(loanAmount));
         expect(endLenderBalance)
             .to.lte(iniLenderBalance - formatBigNumber(loanAmount))
             .gt(iniLenderBalance - formatBigNumber(loanAmount) - formatBigNumber(maxGasFee));
@@ -244,8 +243,8 @@ describe("************ Loans ******************", () => {
 
     it("Should liquidate loan", async () => {
         // Initial data
-        const iniLenderBalance = await getBalance(lenderAddress, "lender");
-        const iniBorrowerBalance = await getBalance(borrowerAddress, "borrower");
+        const iniLenderBalance = await getBalance(reefToken, lenderAddress, "lender");
+        const iniBorrowerBalance = await getBalance(reefToken, borrowerAddress, "borrower");
         const iniLoans = await market.fetchAllLoans();
         const iniLenderTokenAmount = await nft.balanceOf(lenderAddress, token1Id);
         const iniMarketTokenAmount = await nft.balanceOf(marketContractAddress, token1Id);
@@ -266,8 +265,8 @@ describe("************ Loans ******************", () => {
         console.log("\tloan liquidated...");
 
         // Final data
-        const endLenderBalance = await getBalance(lenderAddress, "lender");
-        const endBorrowerBalance = await getBalance(borrowerAddress, "borrower");
+        const endLenderBalance = await getBalance(reefToken, lenderAddress, "lender");
+        const endBorrowerBalance = await getBalance(reefToken, borrowerAddress, "borrower");
         const endLoans = await market.fetchAllLoans();
         const endLenderTokenAmount = await nft.balanceOf(lenderAddress, token1Id);
         const endMarketTokenAmount = await nft.balanceOf(marketContractAddress, token1Id);
@@ -314,7 +313,7 @@ describe("************ Loans ******************", () => {
 
         // Create loan proposal
         console.log("\tborrower creating loan proposal...");
-        await getBalance(borrowerAddress, "borrower");
+        await getBalance(reefToken, borrowerAddress, "borrower");
         await market
             .connect(borrower)
             .createNewNftLoan(
@@ -326,7 +325,7 @@ describe("************ Loans ******************", () => {
                 loanDuration
             );
         console.log("\tloan proposal created");
-        await getBalance(borrowerAddress, "borrower");
+        await getBalance(reefToken, borrowerAddress, "borrower");
 
         const loan = (await market.fetchAllLoans()).at(-1);
         loan3Id = loan.positionId;
@@ -349,8 +348,8 @@ describe("************ Loans ******************", () => {
         const iniBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token2Id);
         const iniMarketTokenAmount = await nft.balanceOf(marketContractAddress, token2Id);
         const iniLoans = await market.fetchAllLoans();
-        const iniLenderBalance = await getBalance(lenderAddress, "lender");
-        const iniBorrowerBalance = await getBalance(borrowerAddress, "borrower");
+        const iniLenderBalance = await getBalance(reefToken, lenderAddress, "lender");
+        const iniBorrowerBalance = await getBalance(reefToken, borrowerAddress, "borrower");
 
         // Repay loan
         console.log("\tborrower repaying loan...");
@@ -361,12 +360,12 @@ describe("************ Loans ******************", () => {
         const endBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token2Id);
         const endMarketTokenAmount = await nft.balanceOf(marketContractAddress, token2Id);
         const endLoans = await market.fetchAllLoans();
-        const endLenderBalance = await getBalance(lenderAddress, "lender");
-        const endBorrowerBalance = await getBalance(borrowerAddress, "borrower");
+        const endLenderBalance = await getBalance(reefToken, lenderAddress, "lender");
+        const endBorrowerBalance = await getBalance(reefToken, borrowerAddress, "borrower");
 
         // Evaluate results
-        expect(Math.round(endLenderBalance)).to.equals(
-            Math.round(iniLenderBalance + formatBigNumber(loanAmount)) + formatBigNumber(feeAmount)
+        expect(endLenderBalance).to.equals(
+            iniLenderBalance + formatBigNumber(loanAmount) + formatBigNumber(feeAmount)
         );
         expect(endBorrowerBalance)
             .to.lte(iniBorrowerBalance - formatBigNumber(loanAmount) - formatBigNumber(feeAmount))
@@ -380,48 +379,4 @@ describe("************ Loans ******************", () => {
         expect(iniMarketTokenAmount - endMarketTokenAmount).to.equal(token2Amount);
         expect(endLoans.length).to.equal(iniLoans.length - 1);
     });
-
-    async function getBalance(address, name) {
-        const balance = await reefToken.balanceOf(address);
-        const balanceFormatted = formatBigNumber(balance);
-        console.log(`\t\tBalance of ${name}:`, balanceFormatted);
-
-        return balanceFormatted;
-    }
-
-    function formatBigNumber(bigNumber) {
-        return Number(Number(ethers.utils.formatUnits(bigNumber.toString(), "ether")).toFixed(4));
-    }
-
-    async function throwsException(promise, message) {
-        try {
-            const tx = await promise;
-            const receipt = await tx.wait();
-            console.log("Promise did NOT throw exception!");
-            console.log("event", receipt.events[0].args);
-            assert(false);
-        } catch (error) {
-            console.log(error.message);
-            expect(error.message).contains(message);
-        }
-    }
-
-    const delay = (ms) => new Promise((res) => setTimeout(res, ms));
-
-    async function logEvents(promise) {
-        const tx = await promise;
-        const receipt = await tx.wait();
-
-        let msg = "No events for this tx";
-        if (receipt.events) {
-            const eventsArgs = [];
-            receipt.events.forEach((event) => {
-                if (event.args) {
-                    eventsArgs.push(event.args);
-                }
-            });
-            msg = eventsArgs;
-        }
-        console.log(msg);
-    }
 });
