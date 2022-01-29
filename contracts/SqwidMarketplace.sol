@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import "../@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "../@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "../@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../@openzeppelin/contracts/utils/Counters.sol";
 import "../@openzeppelin/contracts/access/Ownable.sol";
-import "./interface/IRoyaltyInfo.sol";
+import "./interface/ISqwidERC1155.sol";
 
 contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     using Counters for Counters.Counter;
@@ -118,6 +117,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     Counters.Counter private _onRaffle;
     Counters.Counter private _onLoan;
     uint256 public marketFee;
+    address public nftContractAddress;
 
     mapping(uint256 => Item) private _idToItem;
     mapping(uint256 => Position) private _idToPosition;
@@ -178,22 +178,31 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(uint256 marketFee_) {
+    constructor(uint256 marketFee_, address nftContractAddress_) {
         marketFee = marketFee_;
+        nftContractAddress = nftContractAddress_;
     }
 
     /**
      * Sets market fee percentage with two decimal points.
      * E.g. 250 --> 2.5%
      */
-    function setMarketFee(uint256 marketFee_) external virtual onlyOwner {
+    function setMarketFee(uint256 marketFee_) external onlyOwner {
         require(
             marketFee_ <= 1000,
             "SqwidMarketplace: Market fee value cannot be higher than 1000."
         );
-        uint256 prevMarketFee = marketFee_;
+        uint256 prevMarketFee = marketFee;
         marketFee = marketFee_;
         emit MarketFeeChanged(prevMarketFee, marketFee_);
+    }
+
+    /**
+     * Sets new NFT contract address.
+     */
+    function setNftContractAddress(address nftContractAddress_) external onlyOwner {
+        require(nftContractAddress_ != address(0), "SqwidMarketplace: Cannot set to 0 address.");
+        nftContractAddress = nftContractAddress_;
     }
 
     /**
@@ -206,11 +215,55 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     }
 
     /**
+     * Mints new SqwidERC1155 token and adds it to the marketplace.
+     */
+    function mint(
+        uint256 amount,
+        string memory tokenURI,
+        address royaltyRecipient,
+        uint256 royaltyValue,
+        bool mutableMetadata
+    ) public returns (uint256) {
+        uint256 tokenId = ISqwidERC1155(nftContractAddress).mint(
+            msg.sender,
+            amount,
+            tokenURI,
+            royaltyRecipient,
+            royaltyValue,
+            mutableMetadata
+        );
+        return createItem(nftContractAddress, tokenId);
+    }
+
+    /**
+     * Mints batch of new SqwidERC1155 tokens and adds them to the marketplace.
+     */
+    function mintBatch(
+        uint256[] memory amounts,
+        string[] memory tokenURIs,
+        address[] memory royaltyRecipients,
+        uint256[] memory royaltyValues,
+        bool[] memory mutableMetadatas
+    ) external {
+        uint256[] memory tokenIds = ISqwidERC1155(nftContractAddress).mintBatch(
+            msg.sender,
+            amounts,
+            tokenURIs,
+            royaltyRecipients,
+            royaltyValues,
+            mutableMetadatas
+        );
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            createItem(nftContractAddress, tokenIds[i]);
+        }
+    }
+
+    /**
      * Creates new market item.
      */
     function createItem(address nftContract, uint256 tokenId) public returns (uint256) {
         require(
-            IERC1155(nftContract).balanceOf(msg.sender, tokenId) > 0,
+            ISqwidERC1155(nftContract).balanceOf(msg.sender, tokenId) > 0,
             "SqwidMarketplace: This address does not own enough tokens."
         );
 
@@ -334,7 +387,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 amount = _idToPosition[positionId].amount;
 
         if (_idToPosition[positionId].state == PositionState.Available) {
-            amount = IERC1155(item.nftContract).balanceOf(
+            amount = ISqwidERC1155(item.nftContract).balanceOf(
                 _idToPosition[positionId].owner,
                 item.tokenId
             );
@@ -409,7 +462,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
      */
     function addAvailableTokens(uint256 itemId) public itemExists(itemId) {
         require(
-            IERC1155(_idToItem[itemId].nftContract).balanceOf(
+            ISqwidERC1155(_idToItem[itemId].nftContract).balanceOf(
                 msg.sender,
                 _idToItem[itemId].tokenId
             ) > 0,
@@ -432,16 +485,18 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     /////////////////////////// REGULAR SALE ////////////////////////////////////
 
     /**
-     * Puts on sale a new NFT.
+     * Puts on sale a new market item.
      */
     function putNewItemOnSale(
-        address nftContract,
-        uint256 tokenId,
         uint256 amount,
+        string memory tokenURI,
+        address royaltyRecipient,
+        uint256 royaltyValue,
+        bool mutableMetadata,
         uint256 price
     ) external {
-        // Create market item
-        uint256 itemId = createItem(nftContract, tokenId);
+        // Mint and create market item
+        uint256 itemId = mint(amount, tokenURI, royaltyRecipient, royaltyValue, mutableMetadata);
 
         // Put on sale
         putItemOnSale(itemId, amount, price);
@@ -459,7 +514,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         require(amount > 0, "SqwidMarketplace: Amount must be greater than 0.");
         require(
             amount <=
-                IERC1155(_idToItem[itemId].nftContract).balanceOf(
+                ISqwidERC1155(_idToItem[itemId].nftContract).balanceOf(
                     msg.sender,
                     _idToItem[itemId].tokenId
                 ),
@@ -467,7 +522,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         );
 
         // Transfer ownership of the token to this contract
-        IERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
+        ISqwidERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
             msg.sender,
             address(this),
             _idToItem[itemId].tokenId,
@@ -569,7 +624,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 itemId = _idToPosition[positionId].itemId;
 
         // Transfer ownership back to seller
-        IERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
+        ISqwidERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
             address(this),
             msg.sender,
             _idToItem[itemId].tokenId,
@@ -596,17 +651,19 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     /////////////////////////// AUCTION ////////////////////////////////////
 
     /**
-     * Creates an auction for a new item.
+     * Creates an auction for a new market item.
      */
     function createNewItemAuction(
-        address nftContract,
-        uint256 tokenId,
         uint256 amount,
+        string memory tokenURI,
+        address royaltyRecipient,
+        uint256 royaltyValue,
+        bool mutableMetadata,
         uint256 numMinutes,
         uint256 minBid
     ) external {
-        // Create market item
-        uint256 itemId = createItem(nftContract, tokenId);
+        // Mint and create market item
+        uint256 itemId = mint(amount, tokenURI, royaltyRecipient, royaltyValue, mutableMetadata);
 
         // Create auction
         createItemAuction(itemId, amount, numMinutes, minBid);
@@ -624,7 +681,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         address nftContract = _idToItem[itemId].nftContract;
         uint256 tokenId = _idToItem[itemId].tokenId;
         require(
-            amount <= IERC1155(nftContract).balanceOf(msg.sender, tokenId),
+            amount <= ISqwidERC1155(nftContract).balanceOf(msg.sender, tokenId),
             "SqwidMarketplace: Available NFT balance is not enough."
         );
         require(amount > 0, "SqwidMarketplace: Amount must be greater than 0.");
@@ -635,7 +692,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         // TODO change min numMinutes to 60 ?
 
         // Transfer ownership of the token to this contract
-        IERC1155(nftContract).safeTransferFrom(msg.sender, address(this), tokenId, amount, "");
+        ISqwidERC1155(nftContract).safeTransferFrom(msg.sender, address(this), tokenId, amount, "");
 
         // Map new Position
         _positionIds.increment();
@@ -762,7 +819,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         } else {
             receiver = seller;
             // Transfer ownership of the token back to seller
-            IERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
+            ISqwidERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
                 address(this),
                 seller,
                 _idToItem[itemId].tokenId,
@@ -791,16 +848,18 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     /////////////////////////// RAFFLE ////////////////////////////////////
 
     /**
-     * Creates a raffle for a new item.
+     * Creates a raffle for a new market item.
      */
-    function createNewNftRaffle(
-        address nftContract,
-        uint256 tokenId,
+    function createNewItemRaffle(
         uint256 amount,
+        string memory tokenURI,
+        address royaltyRecipient,
+        uint256 royaltyValue,
+        bool mutableMetadata,
         uint256 numMinutes
     ) external {
-        // Create market item
-        uint256 itemId = createItem(nftContract, tokenId);
+        // Mint and create market item
+        uint256 itemId = mint(amount, tokenURI, royaltyRecipient, royaltyValue, mutableMetadata);
 
         // Create raffle
         createItemRaffle(itemId, amount, numMinutes);
@@ -817,7 +876,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         address nftContract = _idToItem[itemId].nftContract;
         uint256 tokenId = _idToItem[itemId].tokenId;
         require(
-            amount <= IERC1155(nftContract).balanceOf(msg.sender, tokenId),
+            amount <= ISqwidERC1155(nftContract).balanceOf(msg.sender, tokenId),
             "SqwidMarketplace: Available NFT balance is not enough."
         );
         require(amount > 0, "SqwidMarketplace: Amount must be greater than 0.");
@@ -828,7 +887,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         // TODO change min numMinutes to 60 ?
 
         // Transfer ownership of the token to this contract
-        IERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
+        ISqwidERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
             msg.sender,
             address(this),
             tokenId,
@@ -949,7 +1008,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         } else {
             receiver = seller;
             // Transfer ownership back to seller
-            IERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
+            ISqwidERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
                 address(this),
                 receiver,
                 _idToItem[itemId].tokenId,
@@ -978,18 +1037,26 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     /////////////////////////// LOAN ////////////////////////////////////
 
     /**
-     * Creates a loan for a new item.
+     * Creates a loan for a new market item.
      */
-    function createNewNftLoan(
-        address nftContract,
-        uint256 tokenId,
+    function createNewItemLoan(
+        uint256 tokenAmount,
+        string memory tokenURI,
+        address royaltyRecipient,
+        uint256 royaltyValue,
+        bool mutableMetadata,
         uint256 loanAmount,
         uint256 feeAmount,
-        uint256 tokenAmount,
         uint256 numMinutes
     ) external {
-        // Create market item
-        uint256 itemId = createItem(nftContract, tokenId);
+        // Mint and create market item
+        uint256 itemId = mint(
+            tokenAmount,
+            tokenURI,
+            royaltyRecipient,
+            royaltyValue,
+            mutableMetadata
+        );
 
         // Create raffle
         createItemLoan(itemId, loanAmount, feeAmount, tokenAmount, numMinutes);
@@ -1008,7 +1075,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         address nftContract = _idToItem[itemId].nftContract;
         uint256 tokenId = _idToItem[itemId].tokenId;
         require(
-            tokenAmount <= IERC1155(nftContract).balanceOf(msg.sender, tokenId),
+            tokenAmount <= ISqwidERC1155(nftContract).balanceOf(msg.sender, tokenId),
             "SqwidMarketplace: Available NFT balance is not enough."
         );
         require(loanAmount > 0, "SqwidMarketplace: Loan amount must be greater than 0.");
@@ -1021,7 +1088,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         // TODO change min numMinutes to 1440
 
         // Transfer ownership of the token to this contract
-        IERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
+        ISqwidERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
             msg.sender,
             address(this),
             tokenId,
@@ -1118,7 +1185,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         address borrower = _idToPosition[positionId].owner;
 
         // Transfer tokens back to borrower
-        IERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
+        ISqwidERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
             address(this),
             borrower,
             _idToItem[itemId].tokenId,
@@ -1154,7 +1221,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 itemId = _idToPosition[positionId].itemId;
 
         // Transfer tokens to lender
-        IERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
+        ISqwidERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
             address(this),
             msg.sender,
             _idToItem[itemId].tokenId,
@@ -1191,7 +1258,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 itemId = _idToPosition[positionId].itemId;
 
         // Transfer tokens back to borrower
-        IERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
+        ISqwidERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
             address(this),
             msg.sender,
             _idToItem[itemId].tokenId,
@@ -1306,7 +1373,13 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         }
 
         // Transfer ownership of the token to buyer
-        IERC1155(nftContract).safeTransferFrom(address(this), tokenRecipient, tokenId, amount, "");
+        ISqwidERC1155(nftContract).safeTransferFrom(
+            address(this),
+            tokenRecipient,
+            tokenId,
+            amount,
+            ""
+        );
     }
 
     /**
@@ -1323,7 +1396,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
      */
     function _updateAvailablePosition(uint256 itemId, address tokenOwner) private {
         uint256 receiverPositionId;
-        uint256 amount = IERC1155(_idToItem[itemId].nftContract).balanceOf(
+        uint256 amount = ISqwidERC1155(_idToItem[itemId].nftContract).balanceOf(
             tokenOwner,
             _idToItem[itemId].tokenId
         );

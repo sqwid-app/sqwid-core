@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { formatBigNumber, getBalance, throwsException, delay } = require("./util");
+const { getContracts, formatBigNumber, getBalance, throwsException, delay } = require("./util");
 const ReefAbi = require("./ReefToken.json");
 
 describe("************ Loans ******************", () => {
@@ -13,7 +13,6 @@ describe("************ Loans ******************", () => {
         loanAmount,
         feeAmount,
         loanDuration,
-        ownerAddress,
         borrowerAddress,
         lenderAddress,
         artistAddress,
@@ -31,10 +30,6 @@ describe("************ Loans ******************", () => {
         item1Id;
 
     before(async () => {
-        // Deployed contract addresses (comment to deploy new contracts)
-        marketContractAddress = config.contracts.market;
-        nftContractAddress = config.contracts.nft;
-
         // Get accounts
         owner = await reef.getSignerByName("account1");
         borrower = await reef.getSignerByName("account2");
@@ -59,83 +54,43 @@ describe("************ Loans ******************", () => {
         royaltyValue = 1000; // 10%
         token1Amount = 1000;
         token2Amount = 1;
+        marketFee = 250;
 
-        if (!marketContractAddress || marketContractAddress == "") {
-            // Deploy SqwidMarketplace contract
-            console.log("\tdeploying Market contract...");
-            await getBalance(reefToken, ownerAddress, "owner");
-            const Market = await reef.getContractFactory("SqwidMarketplace", owner);
-            market = await Market.deploy(250);
-            await market.deployed();
-            marketContractAddress = market.address;
-            await getBalance(reefToken, ownerAddress, "owner");
-
-            if (nftContractAddress) {
-                const NFT = await reef.getContractFactory("SqwidERC1155", owner);
-                nft = await NFT.attach(nftContractAddress);
-                await nft.connect(owner).setMarketplaceAddress(marketContractAddress);
-            }
-        } else {
-            // Get deployed contract
-            const Market = await reef.getContractFactory("SqwidMarketplace", owner);
-            market = await Market.attach(marketContractAddress);
-        }
-        console.log(`\tMarket contract deployed in ${marketContractAddress}`);
-
-        if (!nftContractAddress || nftContractAddress == "") {
-            // Deploy SqwidERC1155 contract
-            console.log("\tdeploying NFT contract...");
-            await getBalance(reefToken, ownerAddress, "owner");
-            const NFT = await reef.getContractFactory("SqwidERC1155", owner);
-            nft = await NFT.deploy(marketContractAddress);
-            await nft.deployed();
-            nftContractAddress = nft.address;
-            await getBalance(reefToken, ownerAddress, "owner");
-        } else {
-            // Get deployed contract
-            const NFT = await reef.getContractFactory("SqwidERC1155", owner);
-            nft = await NFT.attach(nftContractAddress);
-        }
-        console.log(`\tNFT contact deployed ${nftContractAddress}`);
+        // Deploy or get existing contracts
+        const contracts = await getContracts(marketFee, owner);
+        nft = contracts.nft;
+        market = contracts.market;
+        nftContractAddress = nft.address;
+        marketContractAddress = market.address;
     });
 
     it("Should create loan proposal", async () => {
-        // Create NFT
-        console.log("\tcreating token...");
-        const tx1 = await nft
-            .connect(borrower)
-            .mint(
-                borrowerAddress,
-                token1Amount + 10,
-                "https://fake-uri.com",
-                artistAddress,
-                royaltyValue,
-                false
-            );
-        const receipt1 = await tx1.wait();
-        token1Id = receipt1.events[0].args[3].toNumber();
-        console.log(`\tNFT created with tokenId ${token1Id}`);
+        // Approve market contract
+        console.log("\tcreating approval for market contract...");
+        await nft.connect(borrower).setApprovalForAll(marketContractAddress, true);
+        console.log("\tapproval created");
 
         // Initial data
         const iniLoans = await market.fetchAllLoans();
-        const iniBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token1Id);
-        const iniMarketTokenAmount = await nft.balanceOf(marketContractAddress, token1Id);
 
-        // Create loan proposal
+        // Create NFT, add to market and create loan proposal
         console.log("\tborrower creating loan proposal...");
         await getBalance(reefToken, borrowerAddress, "borrower");
-        const tx2 = await market
+        const tx = await market
             .connect(borrower)
-            .createNewNftLoan(
-                nftContractAddress,
-                token1Id,
+            .createNewItemLoan(
+                token1Amount,
+                "https://fake-uri.com",
+                artistAddress,
+                royaltyValue,
+                false,
                 loanAmount,
                 feeAmount,
-                token1Amount,
                 loanDuration
             );
-        const receipt2 = await tx2.wait();
-        loan1Id = receipt2.events[3].args[0].toNumber();
+        const receipt = await tx.wait();
+        token1Id = receipt.events[2].args[2].toNumber();
+        loan1Id = receipt.events[4].args[0].toNumber();
         console.log(`\tLoan proposal created with id ${loan1Id}`);
         await getBalance(reefToken, borrowerAddress, "borrower");
 
@@ -147,8 +102,8 @@ describe("************ Loans ******************", () => {
         const endMarketTokenAmount = await nft.balanceOf(marketContractAddress, token1Id);
 
         // Evaluate results
-        expect(iniBorrowerTokenAmount - endBorrowerTokenAmount).to.equal(token1Amount);
-        expect(endMarketTokenAmount - iniMarketTokenAmount).to.equal(token1Amount);
+        expect(Number(endBorrowerTokenAmount)).to.equal(0);
+        expect(Number(endMarketTokenAmount)).to.equal(token1Amount);
         expect(endLoans.length).to.equal(iniLoans.length + 1);
         expect(loan.item.nftContract).to.equal(nftContractAddress);
         expect(Number(loan.item.tokenId)).to.equal(token1Id);
@@ -295,35 +250,23 @@ describe("************ Loans ******************", () => {
     });
 
     it("Should not repay loan if value sent is not enough", async () => {
-        // Create NFT
-        console.log("\tcreating token...");
-        const tx1 = await nft
+        // Create NFT, add to market and create loan proposal
+        console.log("\tborrower creating loan proposal...");
+        await getBalance(reefToken, borrowerAddress, "borrower");
+        const tx1 = await market
             .connect(borrower)
-            .mint(
-                borrowerAddress,
+            .createNewItemLoan(
                 token2Amount,
                 "https://fake-uri.com",
                 artistAddress,
                 royaltyValue,
-                false
-            );
-        const receipt1 = await tx1.wait();
-        token2Id = receipt1.events[0].args[3].toNumber();
-        console.log(`\tNFT created with tokenId ${token2Id}`);
-
-        // Create loan proposal
-        console.log("\tborrower creating loan proposal...");
-        await getBalance(reefToken, borrowerAddress, "borrower");
-        await market
-            .connect(borrower)
-            .createNewNftLoan(
-                nftContractAddress,
-                token2Id,
+                false,
                 loanAmount,
                 feeAmount,
-                token2Amount,
                 loanDuration
             );
+        const receipt1 = await tx1.wait();
+        token2Id = receipt1.events[2].args[2].toNumber();
         console.log("\tloan proposal created");
         await getBalance(reefToken, borrowerAddress, "borrower");
 

@@ -3,7 +3,6 @@ pragma solidity ^0.8.4;
 
 import "../@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "../@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
-import "../@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/Context.sol";
@@ -19,7 +18,6 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     bytes4 private constant _INTERFACE_ID_MUTABLE_URI = 0xc962d178;
 
     Counters.Counter private _tokenIds;
-    address public marketplaceAddress;
 
     mapping(uint256 => mapping(address => uint256)) private _balances;
     mapping(uint256 => address[]) private _owners;
@@ -27,17 +25,6 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     mapping(uint256 => string) private _uris;
     mapping(bytes4 => bool) private _supportedInterfaces;
     mapping(uint256 => bool) private _mutableMetadataMapping;
-
-    constructor(address marketplaceAddress_) {
-        marketplaceAddress = marketplaceAddress_;
-    }
-
-    /**
-     * Sets new marketplace contract address.
-     */
-    function setMarketplaceAddress(address marketplaceAddress_) public onlyOwner {
-        marketplaceAddress = marketplaceAddress_;
-    }
 
     /**
      * Mints a new token.
@@ -48,11 +35,10 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         string memory tokenURI,
         address royaltyRecipient,
         uint256 royaltyValue,
-        bool mutableMetada
+        bool mutableMetadata
     ) public returns (uint256) {
         require(to != address(0), "ERC1155: mint to the zero address");
         require(amount > 0, "ERC1155: amount has to be larger than zero");
-
         _tokenIds.increment();
         uint256 tokenId = _tokenIds.current();
 
@@ -74,11 +60,11 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         _doSafeTransferAcceptanceCheck(operator, address(0), to, tokenId, amount, "");
 
         _uris[tokenId] = tokenURI;
-        setApprovalForAll(marketplaceAddress, true);
+
         if (royaltyValue > 0) {
             _setTokenRoyalty(tokenId, royaltyRecipient, royaltyValue);
         }
-        _mutableMetadataMapping[tokenId] = mutableMetada;
+        _mutableMetadataMapping[tokenId] = mutableMetadata;
 
         return tokenId;
     }
@@ -93,7 +79,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         address[] memory royaltyRecipients,
         uint256[] memory royaltyValues,
         bool[] memory mutableMetadatas
-    ) public virtual {
+    ) public returns (uint256[] memory) {
         require(to != address(0), "ERC1155: mint to the zero address");
         require(
             amounts.length == royaltyRecipients.length &&
@@ -129,6 +115,8 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
             _mutableMetadataMapping[ids[i]] = mutableMetadatas[i];
             _uris[ids[i]] = tokenURIs[i];
         }
+
+        return ids;
     }
 
     /**

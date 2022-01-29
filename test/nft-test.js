@@ -1,9 +1,8 @@
 const { expect, assert } = require("chai");
-const { throwsException } = require("./util");
+const { getContracts, throwsException } = require("./util");
 
 describe("************ NFT ******************", () => {
     let nft,
-        nftContractAddress,
         contractOwner,
         artist,
         creator,
@@ -17,9 +16,6 @@ describe("************ NFT ******************", () => {
         artistAddress;
 
     before(async () => {
-        // Deployed contract address (comment to deploy new contract)
-        nftContractAddress = config.contracts.nft;
-
         // Get accounts
         contractOwner = await reef.getSignerByName("account1");
         creator = await reef.getSignerByName("account2");
@@ -36,23 +32,9 @@ describe("************ NFT ******************", () => {
         salePrice = ethers.utils.parseUnits("50", "ether");
         royaltyValue = 1000; // 10%
 
-        if (!nftContractAddress || nftContractAddress == "") {
-            // Deploy SqwidERC1155 contract
-            console.log("\tdeploying NFT contract...");
-            const NFT = await reef.getContractFactory("SqwidERC1155", contractOwner);
-            const marketContractAddress =
-                !config.contracts.market || config.contracts.market == ""
-                    ? "0x0000000000000000000000000000000000000000"
-                    : config.contracts.market;
-            nft = await NFT.deploy(marketContractAddress);
-            await nft.deployed();
-            nftContractAddress = nft.address;
-        } else {
-            // Get deployed contract
-            const NFT = await reef.getContractFactory("SqwidERC1155", contractOwner);
-            nft = await NFT.attach(nftContractAddress);
-        }
-        console.log(`\tNFT contact deployed ${nftContractAddress}`);
+        // Deploy or get existing contracts
+        const contracts = await getContracts(250, contractOwner);
+        nft = contracts.nft;
     });
 
     it("Should get NFT contract data", async () => {
