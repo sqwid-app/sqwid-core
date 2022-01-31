@@ -3,6 +3,7 @@ node_modules
 #Hardhat files
 cache
 artifacts
+bin
 
 .yarn/*
 !.yarn/patches

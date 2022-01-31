@@ -79,7 +79,7 @@ describe("************ Auctions ******************", () => {
         console.log("\tapproval created");
 
         // Initial data
-        const iniAuctions = await market.fetchAllAuctions();
+        const iniAuctions = await market.fetchPositionsByState(2);
 
         // Create auction
         console.log("\tseller creating auction...");
@@ -101,7 +101,7 @@ describe("************ Auctions ******************", () => {
         await getBalance(reefToken, sellerAddress, "seller");
 
         // Final data
-        const endAuctions = await market.fetchAllAuctions();
+        const endAuctions = await market.fetchPositionsByState(2);
         const auction = endAuctions.at(-1);
         auctionId = auction.positionId;
         const tokenUri = await nft.uri(tokenId);
@@ -240,7 +240,7 @@ describe("************ Auctions ******************", () => {
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const iniMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
         await getBalance(reefToken, buyer1Address, "buyer1");
-        const auctions = await market.fetchAllAuctions();
+        const auctions = await market.fetchPositionsByState(2);
         const iniNumAuctions = auctions.length;
         const auction = auctions.at(-1);
         itemId = auction.item.itemId;
@@ -276,7 +276,7 @@ describe("************ Auctions ******************", () => {
         const marketFeeAmount = ((bid4Amount - royaltiesAmount) * marketFee) / 10000;
         await getBalance(reefToken, buyer1Address, "buyer1");
         const endBuyer2TokenAmount = await nft.balanceOf(buyer2Address, tokenId);
-        const endNumAuctions = (await market.fetchAllAuctions()).length;
+        const endNumAuctions = (await market.fetchPositionsByState(2)).length;
 
         // Evaluate results
         expect(endItem.sales[0].seller).to.equal(sellerAddress);
@@ -314,7 +314,7 @@ describe("************ Auctions ******************", () => {
         // Initial data
         const iniBuyer2Balance = await getBalance(reefToken, buyer2Address, "buyer1");
         const iniBuyer2TokenAmount = Number(await nft.balanceOf(buyer2Address, tokenId));
-        const iniNumAuctions = (await market.fetchAllAuctions()).length;
+        const iniNumAuctions = (await market.fetchPositionsByState(2)).length;
 
         // Approve market contract for this address
         console.log("\tcreating approval for market contract...");
@@ -336,7 +336,7 @@ describe("************ Auctions ******************", () => {
         );
 
         // Wait until deadline
-        const auctionData = (await market.fetchAllAuctions()).at(-1).auctionData;
+        const auctionData = (await market.fetchPositionsByState(2)).at(-1).auctionData;
         deadline = new Date(auctionData.deadline * 1000);
         const timeUntilDeadline = deadline - new Date();
         console.log(`\ttime until deadline: ${timeUntilDeadline / 1000} secs.`);
@@ -354,7 +354,7 @@ describe("************ Auctions ******************", () => {
         // Final data
         const endBuyer2Balance = await getBalance(reefToken, buyer2Address, "buyer2");
         const endBuyer2TokenAmount = Number(await nft.balanceOf(buyer2Address, tokenId));
-        const endNumAuctions = (await market.fetchAllAuctions()).length;
+        const endNumAuctions = (await market.fetchPositionsByState(2)).length;
 
         // Evaluate results
         expect(endBuyer2Balance)

@@ -209,7 +209,7 @@ describe("************ Marketplace ******************", () => {
 
     it("Should put new nft on sale", async () => {
         // Initial data
-        const iniPositionsOnRegSale = await market.fetchAllOnRegularSale();
+        const iniPositionsOnRegSale = await market.fetchPositionsByState(1);
         const iniItems = await market.fetchAllItems();
 
         // Creates NFT, adds it to the market and puts it on sale in the same call
@@ -235,7 +235,7 @@ describe("************ Marketplace ******************", () => {
         // Results
         const position = await market.fetchPosition(position2Id);
         const item = await market.fetchItem(item2Id);
-        const endPositionsOnRegSale = await market.fetchAllOnRegularSale();
+        const endPositionsOnRegSale = await market.fetchPositionsByState(1);
         const endItems = await market.fetchAllItems();
 
         // Evaluate results
@@ -256,7 +256,7 @@ describe("************ Marketplace ******************", () => {
     it("Should get address created items", async () => {
         // Get items created by seller
         console.log("\tgetting seller creations...");
-        const items = await market.connect(seller).fetchMyItemsCreated();
+        const items = await market.fetchAddressItemsCreated(sellerAddress);
         console.log("\tseller creations retrieved...");
 
         // Evaluate results
@@ -271,7 +271,7 @@ describe("************ Marketplace ******************", () => {
         const iniArtistBalance = await getBalance(reefToken, artistAddress, "artist");
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const iniBuyer1TokenAmount = await nft.balanceOf(buyer1Address, token1Id);
-        const iniAvailablePositions = await market.fetchAllAvailablePositions();
+        const iniAvailablePositions = await market.fetchPositionsByState(0);
 
         // Buy NFT
         console.log("\tbuyer1 buying NFT from seller...");
@@ -287,7 +287,7 @@ describe("************ Marketplace ******************", () => {
         const royaltiesAmount = (salePrice * royaltyValue) / 10000;
         const marketFeeAmount = ((salePrice - royaltiesAmount) * marketFee) / 10000;
         const item = await market.fetchItem(item1Id);
-        const endAvailablePositions = await market.fetchAllAvailablePositions();
+        const endAvailablePositions = await market.fetchPositionsByState(0);
 
         // Evaluate results
         expect(endBuyer1TokenAmount - iniBuyer1TokenAmount).to.equal(1);
@@ -391,7 +391,7 @@ describe("************ Marketplace ******************", () => {
         const iniSellerTokenPosition = iniSellerPositions.at(-1);
         const iniBuyerPositions = await market.fetchAddressPositions(buyer1Address);
         const iniItem = await market.fetchItem(itemId);
-        const iniPositions = await market.fetchAllAvailablePositions();
+        const iniPositions = await market.fetchPositionsByState(0);
 
         // Transfers tokens outside the marketplace
         console.log("\tseller tansfering tokens to buyer1...");
@@ -409,7 +409,7 @@ describe("************ Marketplace ******************", () => {
         const endBuyerPositions = await market.fetchAddressPositions(buyer1Address);
         const endBuyerTokenPosition = endBuyerPositions.at(-1);
         const endItem = await market.fetchItem(itemId);
-        const endPositions = await market.fetchAllAvailablePositions();
+        const endPositions = await market.fetchPositionsByState(0);
 
         // Evaluate results
         expect(endPositions.length - iniPositions.length).to.equal(1);

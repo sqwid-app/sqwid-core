@@ -15,7 +15,12 @@ async function main() {
 
     console.log("starting deployment...");
 
-    const ownerAccount = await hre.reef.getSignerByName("mainnetAccount");
+    let ownerAccount;
+    if (hre.network.name == "reef_testnet") {
+        ownerAccount = await hre.reef.getSignerByName("account1");
+    } else {
+        ownerAccount = await hre.reef.getSignerByName("mainnetAccount");
+    }
 
     // Deploy SqwidERC1155
     const NFT = await hre.reef.getContractFactory("SqwidERC1155", ownerAccount);

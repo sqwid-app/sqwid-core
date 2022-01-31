@@ -253,7 +253,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             royaltyValues,
             mutableMetadatas
         );
-        for (uint256 i = 0; i < tokenIds.length; i++) {
+        for (uint256 i; i < tokenIds.length; i++) {
             createItem(nftContractAddress, tokenIds[i]);
         }
     }
@@ -269,7 +269,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
 
         // Check if item already exists
         uint256 totalItemCount = _itemIds.current();
-        for (uint256 i = 0; i < totalItemCount; i++) {
+        for (uint256 i; i < totalItemCount; i++) {
             if (
                 _idToItem[i + 1].nftContract == nftContract && _idToItem[i + 1].tokenId == tokenId
             ) {
@@ -324,19 +324,12 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
 
         // Fill array
         uint256 currentIndex = 0;
-        for (uint256 i = 0; i < totalItemCount; i++) {
+        for (uint256 i; i < totalItemCount; i++) {
             items[currentIndex] = fetchItem(i + 1);
             currentIndex += 1;
         }
 
         return items;
-    }
-
-    /**
-     * Returns items created by caller.
-     */
-    function fetchMyItemsCreated() external view returns (ItemResponse[] memory) {
-        return fetchAddressItemsCreated(msg.sender);
     }
 
     /**
@@ -350,7 +343,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         // Get total number of items created by target address
         uint256 totalItemCount = _itemIds.current();
         uint256 itemCount = 0;
-        for (uint256 i = 0; i < totalItemCount; i++) {
+        for (uint256 i; i < totalItemCount; i++) {
             if (_idToItem[i + 1].creator == targetAddress) {
                 itemCount += 1;
             }
@@ -361,7 +354,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
 
         // Fill array
         uint256 currentIndex = 0;
-        for (uint256 i = 0; i < totalItemCount; i++) {
+        for (uint256 i; i < totalItemCount; i++) {
             if (_idToItem[i + 1].creator == targetAddress) {
                 items[currentIndex] = fetchItem(i + 1);
                 currentIndex += 1;
@@ -417,13 +410,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     }
 
     /**
-     * Returns item positions from caller.
-     */
-    function fetchMyPositions() external view returns (PositionResponse[] memory) {
-        return fetchAddressPositions(msg.sender);
-    }
-
-    /**
      * Returns items positions from an address.
      */
     function fetchAddressPositions(address targetAddress)
@@ -435,7 +421,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 totalPositionCount = _positionIds.current();
         uint256 positionCount = 0;
         uint256 currentIndex = 0;
-        for (uint256 i = 0; i < totalPositionCount; i++) {
+        for (uint256 i; i < totalPositionCount; i++) {
             if (_idToPosition[i + 1].owner == targetAddress) {
                 positionCount += 1;
             }
@@ -445,8 +431,45 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         PositionResponse[] memory positions = new PositionResponse[](positionCount);
 
         // Fill array
-        for (uint256 i = 0; i < totalPositionCount; i++) {
+        for (uint256 i; i < totalPositionCount; i++) {
             if (_idToPosition[i + 1].owner == targetAddress) {
+                positions[currentIndex] = fetchPosition(i + 1);
+                currentIndex += 1;
+            }
+        }
+
+        return positions;
+    }
+
+    /**
+     * Returns market item positions for a given state.
+     */
+    function fetchPositionsByState(PositionState state)
+        external
+        view
+        returns (PositionResponse[] memory)
+    {
+        uint256 currentIndex = 0;
+        uint256 stateCount;
+        if (state == PositionState.Available) {
+            stateCount = _availablePositions.current();
+        } else if (state == PositionState.RegularSale) {
+            stateCount = _onRegularSale.current();
+        } else if (state == PositionState.Auction) {
+            stateCount = _onAuction.current();
+        } else if (state == PositionState.Raffle) {
+            stateCount = _onRaffle.current();
+        } else if (state == PositionState.Loan) {
+            stateCount = _onLoan.current();
+        }
+
+        // Initialize array
+        PositionResponse[] memory positions = new PositionResponse[](stateCount);
+
+        // Fill array
+        uint256 totalPositionCount = _positionIds.current();
+        for (uint256 i; i < totalPositionCount; i++) {
+            if (_idToPosition[i + 1].positionId > 0 && _idToPosition[i + 1].state == state) {
                 positions[currentIndex] = fetchPosition(i + 1);
                 currentIndex += 1;
             }
@@ -473,13 +496,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             revert("SqwidMarketplace: Item already registered by this user.");
         }
         _updateAvailablePosition(itemId, msg.sender);
-    }
-
-    /**
-     * Returns market item positions available (not on sale, auction, raffle or loan).
-     */
-    function fetchAllAvailablePositions() external view returns (PositionResponse[] memory) {
-        return _fetchPositionsByState(PositionState.Available);
     }
 
     /////////////////////////// REGULAR SALE ////////////////////////////////////
@@ -639,13 +655,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _onRegularSale.decrement();
 
         _updateAvailablePosition(itemId, msg.sender);
-    }
-
-    /**
-     * Returns market item positions on regular sale.
-     */
-    function fetchAllOnRegularSale() external view returns (PositionResponse[] memory) {
-        return _fetchPositionsByState(PositionState.RegularSale);
     }
 
     /////////////////////////// AUCTION ////////////////////////////////////
@@ -838,13 +847,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _updateAvailablePosition(itemId, receiver);
     }
 
-    /**
-     * Returns active auctions.
-     */
-    function fetchAllAuctions() external view returns (PositionResponse[] memory) {
-        return _fetchPositionsByState(PositionState.Auction);
-    }
-
     /////////////////////////// RAFFLE ////////////////////////////////////
 
     /**
@@ -982,7 +984,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             uint256 totalValue = _idToRaffleData[positionId].totalValue;
             uint256 indexWinner = _pseudoRand() % totalValue;
             uint256 lastIndex = 0;
-            for (uint256 i = 0; i < totalAddresses; i++) {
+            for (uint256 i; i < totalAddresses; i++) {
                 address currAddress = _idToRaffleData[positionId].indexToAddress[i];
                 lastIndex += _idToRaffleData[positionId].addressToAmount[currAddress];
                 if (indexWinner < lastIndex) {
@@ -1028,11 +1030,29 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     }
 
     /**
-     * Returns all active raffles.
+     * Returns addresses and amounts of an active raffle.
      */
-    function fetchAllRaffles() external view returns (PositionResponse[] memory) {
-        return _fetchPositionsByState(PositionState.Raffle);
-    }
+    // function fetchRaffleAmounts(uint256 positionId)
+    //     external
+    //     view
+    //     positionInState(positionId, PositionState.Raffle)
+    //     returns (address[] memory, uint256[] memory)
+    // {
+    //     uint256 totalAddresses = _idToRaffleData[positionId].totalAddresses;
+
+    //     // Initialize array
+    //     address[] memory addresses = new address[](totalAddresses);
+    //     uint256[] memory amounts = new uint256[](totalAddresses);
+
+    //     // Fill arrays
+    //     for (uint256 i; i < totalAddresses; i++) {
+    //         address currAddress = _idToRaffleData[positionId].indexToAddress[i];
+    //         addresses[i] = currAddress;
+    //         amounts[i] = _idToRaffleData[positionId].addressToAmount[currAddress];
+    //     }
+
+    //     return (addresses, amounts);
+    // }
 
     /////////////////////////// LOAN ////////////////////////////////////
 
@@ -1275,13 +1295,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _updateAvailablePosition(itemId, msg.sender);
     }
 
-    /**
-     * Returns market item positions on loan.
-     */
-    function fetchAllLoans() external view returns (PositionResponse[] memory) {
-        return _fetchPositionsByState(PositionState.Loan);
-    }
-
     /////////////////////////// UTILS ////////////////////////////////////
 
     /**
@@ -1442,7 +1455,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         // Fill array
         uint256 totalPositionCount = _positionIds.current();
         uint256 currentIndex = 0;
-        for (uint256 i = 0; i < totalPositionCount; i++) {
+        for (uint256 i; i < totalPositionCount; i++) {
             if (_idToPosition[i + 1].itemId == itemId) {
                 items[currentIndex] = _idToPosition[i + 1];
                 currentIndex++;
@@ -1461,7 +1474,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         returns (Position memory)
     {
         uint256 totalPositionCount = _positionIds.current();
-        for (uint256 i = 0; i < totalPositionCount; i++) {
+        for (uint256 i; i < totalPositionCount; i++) {
             if (
                 _idToPosition[i + 1].itemId == itemId &&
                 _idToPosition[i + 1].owner == tokenOwner &&
@@ -1473,42 +1486,5 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
 
         Position memory emptyPosition;
         return emptyPosition;
-    }
-
-    /**
-     * Returns market item positions for a given state.
-     */
-    function _fetchPositionsByState(PositionState state)
-        private
-        view
-        returns (PositionResponse[] memory)
-    {
-        uint256 currentIndex = 0;
-        uint256 stateCount;
-        if (state == PositionState.Available) {
-            stateCount = _availablePositions.current();
-        } else if (state == PositionState.RegularSale) {
-            stateCount = _onRegularSale.current();
-        } else if (state == PositionState.Auction) {
-            stateCount = _onAuction.current();
-        } else if (state == PositionState.Raffle) {
-            stateCount = _onRaffle.current();
-        } else if (state == PositionState.Loan) {
-            stateCount = _onLoan.current();
-        }
-
-        // Initialize array
-        PositionResponse[] memory positions = new PositionResponse[](stateCount);
-
-        // Fill array
-        uint256 totalPositionCount = _positionIds.current();
-        for (uint256 i = 0; i < totalPositionCount; i++) {
-            if (_idToPosition[i + 1].positionId > 0 && _idToPosition[i + 1].state == state) {
-                positions[currentIndex] = fetchPosition(i + 1);
-                currentIndex += 1;
-            }
-        }
-
-        return positions;
     }
 }
