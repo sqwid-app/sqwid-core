@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { getContracts, formatBigNumber, getBalance, throwsException, delay } = require("./util");
 const ReefAbi = require("./ReefToken.json");
 
-describe.only("************ Loans ******************", () => {
+describe("************ Loans ******************", () => {
     let market,
         marketContractAddress,
         nft,
@@ -126,7 +126,7 @@ describe.only("************ Loans ******************", () => {
         console.log(`\tlender unlisting loan proposal ${loan1Id}...`);
         await throwsException(
             market.connect(lender).unlistLoanProposal(loan1Id),
-            "SqwidMarketplace: Only borrower can unlist loan."
+            "SqwidMarket: Only borrower can unlist"
         );
 
         console.log("\tborrower unlisting loan proposal...");
@@ -158,6 +158,8 @@ describe.only("************ Loans ******************", () => {
         // Initial data
         const iniLenderBalance = await getBalance(reefToken, lenderAddress, "lender");
         const iniBorrowerBalance = await getBalance(reefToken, borrowerAddress, "borrower");
+        const iniMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
+        const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
 
         // Fund proposal
         console.log("\tlender funding loan...");
@@ -168,14 +170,23 @@ describe.only("************ Loans ******************", () => {
         const loan = await market.fetchPosition(loan2Id);
         const endLenderBalance = await getBalance(reefToken, lenderAddress, "lender");
         const endBorrowerBalance = await getBalance(reefToken, borrowerAddress, "borrower");
+        const endMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
+        const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
         deadline = new Date(loan.loanData.deadline * 1000);
+        const marketFeeAmount = (loanAmount * marketFee) / 10000;
 
         // Evaluate results
-        expect(endBorrowerBalance).to.equals(iniBorrowerBalance + formatBigNumber(loanAmount));
+        expect(loan.loanData.lender).to.equal(lenderAddress);
+        expect(endBorrowerBalance).to.equals(
+            iniBorrowerBalance + formatBigNumber(loanAmount) - formatBigNumber(marketFeeAmount)
+        );
         expect(endLenderBalance)
             .to.lte(iniLenderBalance - formatBigNumber(loanAmount))
             .gt(iniLenderBalance - formatBigNumber(loanAmount) - formatBigNumber(maxGasFee));
-        expect(loan.loanData.lender).to.equal(lenderAddress);
+        expect(endMarketBalance).to.equal(iniMarketBalance + formatBigNumber(marketFeeAmount));
+        expect(formatBigNumber(endOwnerMarketBalance)).to.equal(
+            formatBigNumber(iniOwnerMarketBalance) + formatBigNumber(marketFeeAmount)
+        );
         expect(deadline)
             .to.lt(new Date(new Date().getTime() + 90000))
             .to.gt(new Date(new Date().getTime() + 30000)); // +/- 30 secs. margin for timestamp calculation
@@ -184,7 +195,7 @@ describe.only("************ Loans ******************", () => {
     it("Should not allow to unlist funded loan", async () => {
         await throwsException(
             market.connect(borrower).unlistLoanProposal(loan2Id),
-            "SqwidMarketplace: Cannot unlist loan already funded."
+            "SqwidMarket: Loan already funded"
         );
     });
 
@@ -192,7 +203,7 @@ describe.only("************ Loans ******************", () => {
         console.log("\tliquidating loan...");
         await throwsException(
             market.connect(lender).liquidateLoan(loan2Id),
-            "SqwidMarketplace: The repayment deadline has not been reached yet."
+            "SqwidMarket: Deadline not reached"
         );
     });
 
@@ -282,7 +293,7 @@ describe.only("************ Loans ******************", () => {
         console.log("\tborrower repaying loan...");
         await throwsException(
             market.connect(borrower).repayLoan(loan3Id, { value: loanAmount }),
-            "SqwidMarketplace: Value sent is less than loan amount plus fee."
+            "SqwidMarket: Value sent invalid"
         );
     });
 

@@ -74,7 +74,7 @@ contract MarketMigrationSample {
     mapping(uint256 => LoanData) public idToLoanData;
 
     constructor(address oldMarketplace) {
-        _getInitialData(oldMarketplace);
+        _setInitialData(oldMarketplace);
     }
 
     function fetchItemSales(uint256 itemId) external view returns (ItemSale[] memory) {
@@ -102,7 +102,7 @@ contract MarketMigrationSample {
         return (addresses, amounts);
     }
 
-    function _getInitialData(address oldMarketplace) private {
+    function _setInitialData(address oldMarketplace) private {
         // Items
         ISqwidMarketplace.ItemResponse[] memory items = ISqwidMarketplace(oldMarketplace)
             .fetchAllItems();

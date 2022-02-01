@@ -176,7 +176,7 @@ describe("************ Raffles ******************", () => {
         console.log("\tending raffle...");
         await throwsException(
             market.connect(seller).endRaffle(raffleId),
-            "SqwidMarketplace: Raffle deadline has not been reached yet."
+            "SqwidMarket: Deadline not reached"
         );
     });
 

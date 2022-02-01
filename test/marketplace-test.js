@@ -2,7 +2,7 @@ const { expect, assert } = require("chai");
 const { getContracts, formatBigNumber, getBalance, throwsException } = require("./util");
 const ReefAbi = require("./ReefToken.json");
 
-describe("************ Marketplace ******************", () => {
+describe.only("************ Marketplace ******************", () => {
     let market,
         nft,
         owner,
@@ -66,12 +66,45 @@ describe("************ Marketplace ******************", () => {
         );
 
         await market.connect(owner).setMarketFee(350);
-        let fetchedMarketFee = await market.connect(owner).marketFee();
-        expect(Number(fetchedMarketFee)).to.equal(350);
+        let fetchedFee = await market.connect(owner).marketFee();
+        expect(Number(fetchedFee)).to.equal(350);
 
         await market.connect(owner).setMarketFee(250);
-        fetchedMarketFee = await market.connect(owner).marketFee();
-        expect(Number(fetchedMarketFee)).to.equal(250);
+        fetchedFee = await market.connect(owner).marketFee();
+        expect(Number(fetchedFee)).to.equal(250);
+
+        // TODO
+        // await market.connect(owner).setMarketFee(350, 1);
+        // let regSaleFee = await market.connect(owner).marketFeeRegSale();
+        // expect(Number(regSaleFee)).to.equal(350);
+
+        // await market.connect(owner).setMarketFee(250, 1);
+        // regSaleFee = await market.connect(owner).marketFeeRegSale();
+        // expect(Number(regSaleFee)).to.equal(250);
+
+        // await market.connect(owner).setMarketFee(0, 2);
+        // let auctionFee = await market.connect(owner).marketFeeAuction();
+        // expect(Number(auctionFee)).to.equal(0);
+
+        // await market.connect(owner).setMarketFee(250, 2);
+        // auctionFee = await market.connect(owner).marketFeeAuction();
+        // expect(Number(auctionFee)).to.equal(250);
+
+        // await market.connect(owner).setMarketFee(50, 3);
+        // let raffleFee = await market.connect(owner).marketFeeRaffle();
+        // expect(Number(raffleFee)).to.equal(50);
+
+        // await market.connect(owner).setMarketFee(250, 3);
+        // raffleFee = await market.connect(owner).marketFeeRaffle();
+        // expect(Number(raffleFee)).to.equal(250);
+
+        // await market.connect(owner).setMarketFee(5, 4);
+        // let loanFee = await market.connect(owner).marketFeeLoan();
+        // expect(Number(loanFee)).to.equal(5);
+
+        // await market.connect(owner).setMarketFee(250, 4);
+        // loanFee = await market.connect(owner).marketFeeLoan();
+        // expect(Number(loanFee)).to.equal(250);
     });
 
     it("Should mint NFT and create market item", async () => {
@@ -351,7 +384,7 @@ describe("************ Marketplace ******************", () => {
         console.log("\tbuyer1 ending sale...");
         await throwsException(
             market.connect(buyer1).unlistPositionOnSale(position2Id),
-            "SqwidMarketplace: Only seller can unlist item."
+            "SqwidMarket: Only seller can unlist item"
         );
 
         // End sale by seller

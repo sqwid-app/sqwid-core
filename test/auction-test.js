@@ -126,7 +126,7 @@ describe("************ Auctions ******************", () => {
         console.log("\tbuyer1 creating bid...");
         await throwsException(
             market.connect(buyer1).createBid(auctionId, { value: bid1Amount }),
-            "SqwidMarketplace: Bid value cannot be lower than minimum bid."
+            "SqwidMarket: Bid value invalid"
         );
     });
 
@@ -163,7 +163,7 @@ describe("************ Auctions ******************", () => {
         console.log("\tbuyer2 creating bid...");
         await throwsException(
             market.connect(buyer2).createBid(auctionId, { value: bid2Amount }),
-            "SqwidMarketplace: Bid value cannot be lower than highest bid."
+            "SqwidMarket: Bid value invalid"
         );
     });
 
@@ -332,7 +332,7 @@ describe("************ Auctions ******************", () => {
         console.log("\tending auction...");
         await throwsException(
             market.connect(buyer2).endAuction(auctionId),
-            "SqwidMarketplace: Auction deadline has not been reached yet."
+            "SqwidMarket: Deadline not reached"
         );
 
         // Wait until deadline

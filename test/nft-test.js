@@ -161,7 +161,7 @@ describe("************ NFT ******************", () => {
         console.log("\tcreator changing tokenURI...");
         await throwsException(
             nft.connect(creator).setTokenUri(token1Id, newTokenURI),
-            "SqwidERC1155: Only the owner of the total supply can set token URI."
+            "ERC1155: Only owner can set URI"
         );
     });
 
@@ -177,7 +177,7 @@ describe("************ NFT ******************", () => {
         console.log("\tcreator changing tokenURI...");
         await throwsException(
             nft.connect(creator).setTokenUri(tokenId, newTokenURI),
-            "SqwidERC1155: The metadata of this token is immutable."
+            "ERC1155: Token metadata is immutable"
         );
     });
 
@@ -207,7 +207,7 @@ describe("************ NFT ******************", () => {
         console.log("\tcreator burning token...");
         await throwsException(
             nft.connect(creator).burn(creatorAddress, token1Id, 1),
-            "ERC1155: burn amount exceeds balance"
+            "ERC1155: Burn amount exceeds balance"
         );
     });
 

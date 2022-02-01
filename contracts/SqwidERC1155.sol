@@ -38,7 +38,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         bool mutableMetadata
     ) public returns (uint256) {
         require(to != address(0), "ERC1155: mint to the zero address");
-        require(amount > 0, "ERC1155: amount has to be larger than zero");
+        require(amount > 0, "ERC1155: amount has to be larger than 0");
         _tokenIds.increment();
         uint256 tokenId = _tokenIds.current();
 
@@ -80,7 +80,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         uint256[] memory royaltyValues,
         bool[] memory mutableMetadatas
     ) public returns (uint256[] memory) {
-        require(to != address(0), "ERC1155: mint to the zero address");
+        require(to != address(0), "ERC1155: mint to the 0 address");
         require(
             amounts.length == royaltyRecipients.length &&
                 amounts.length == tokenURIs.length &&
@@ -161,12 +161,9 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     function setTokenUri(uint256 tokenId, string memory uriValue) public {
         require(
             balanceOf(msg.sender, tokenId) == getTokenSupply(tokenId),
-            "SqwidERC1155: Only the owner of the total supply can set token URI."
+            "ERC1155: Only owner can set URI"
         );
-        require(
-            _mutableMetadataMapping[tokenId],
-            "SqwidERC1155: The metadata of this token is immutable."
-        );
+        require(_mutableMetadataMapping[tokenId], "ERC1155: Token metadata is immutable");
 
         _uris[tokenId] = uriValue;
     }
@@ -179,7 +176,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
      * - `account` cannot be the zero address.
      */
     function balanceOf(address account, uint256 id) public view virtual override returns (uint256) {
-        require(account != address(0), "ERC1155: balance query for the zero address");
+        require(account != address(0), "ERC1155: Balance query for 0 address");
         return _balances[id][account];
     }
 
@@ -201,7 +198,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         override
         returns (uint256[] memory)
     {
-        require(accounts.length == ids.length, "ERC1155: accounts and ids length mismatch");
+        require(accounts.length == ids.length, "ERC1155: Arrays length mismatch");
 
         uint256[] memory batchBalances = new uint256[](accounts.length);
 
@@ -216,7 +213,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
      * @dev See {IERC1155-setApprovalForAll}.
      */
     function setApprovalForAll(address operator, bool approved) public virtual override {
-        require(_msgSender() != operator, "ERC1155: setting approval status for self");
+        require(_msgSender() != operator, "ERC1155: Setting approval for self");
 
         _operatorApprovals[_msgSender()][operator] = approved;
         emit ApprovalForAll(_msgSender(), operator, approved);
@@ -247,7 +244,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     ) public virtual override {
         require(
             from == _msgSender() || isApprovedForAll(from, _msgSender()),
-            "ERC1155: caller is not owner nor approved"
+            "ERC1155: Caller not owner nor approved"
         );
         _safeTransferFrom(from, to, id, amount, data);
     }
@@ -264,7 +261,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     ) public virtual override {
         require(
             from == _msgSender() || isApprovedForAll(from, _msgSender()),
-            "ERC1155: transfer caller is not owner nor approved"
+            "ERC1155: Caller not owner nor approved"
         );
         _safeBatchTransferFrom(from, to, ids, amounts, data);
     }
@@ -284,9 +281,9 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     ) public virtual {
         require(
             account == _msgSender() || isApprovedForAll(account, _msgSender()),
-            "ERC1155: caller is not owner nor approved"
+            "ERC1155: Caller not owner nor approved"
         );
-        require(account != address(0), "ERC1155: burn from the zero address");
+        require(account != address(0), "ERC1155: Burn from 0 address");
 
         address operator = _msgSender();
 
@@ -300,7 +297,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         );
 
         uint256 accountBalance = _balances[id][account];
-        require(accountBalance >= amount, "ERC1155: burn amount exceeds balance");
+        require(accountBalance >= amount, "ERC1155: Burn amount exceeds balance");
         unchecked {
             _balances[id][account] = accountBalance - amount;
         }
@@ -323,10 +320,10 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     ) public virtual {
         require(
             account == _msgSender() || isApprovedForAll(account, _msgSender()),
-            "ERC1155: caller is not owner nor approved"
+            "ERC1155: Caller not owner nor approved"
         );
-        require(account != address(0), "ERC1155: burn from the zero address");
-        require(ids.length == amounts.length, "ERC1155: ids and amounts length mismatch");
+        require(account != address(0), "ERC1155: Burn from 0 address");
+        require(ids.length == amounts.length, "ERC1155: Arrays length mismatch");
 
         address operator = _msgSender();
 
@@ -337,7 +334,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
             uint256 amount = amounts[i];
 
             uint256 accountBalance = _balances[id][account];
-            require(accountBalance >= amount, "ERC1155: burn amount exceeds balance");
+            require(accountBalance >= amount, "ERC1155: Burn amount exceeds balance");
             unchecked {
                 _balances[id][account] = accountBalance - amount;
             }
@@ -411,7 +408,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         uint256 amount,
         bytes memory data
     ) internal virtual {
-        require(to != address(0), "ERC1155: transfer to the zero address");
+        require(to != address(0), "ERC1155: Transfer to 0 address");
 
         address operator = _msgSender();
 
@@ -426,7 +423,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
 
         uint256 fromBalance = _balances[id][from];
         uint256 toBalance = _balances[id][to];
-        require(fromBalance >= amount, "ERC1155: insufficient balance for transfer");
+        require(fromBalance >= amount, "ERC1155: Insufficient token balance");
 
         unchecked {
             _balances[id][from] = fromBalance - amount;
@@ -457,8 +454,8 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         uint256[] memory amounts,
         bytes memory data
     ) internal virtual {
-        require(ids.length == amounts.length, "ERC1155: ids and amounts length mismatch");
-        require(to != address(0), "ERC1155: transfer to the zero address");
+        require(ids.length == amounts.length, "ERC1155: Arrays length mismatch");
+        require(to != address(0), "ERC1155: Transfer to 0 address");
 
         address operator = _msgSender();
 
@@ -470,7 +467,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
 
             uint256 fromBalance = _balances[id][from];
             uint256 toBalance = _balances[id][to];
-            require(fromBalance >= amount, "ERC1155: insufficient balance for transfer");
+            require(fromBalance >= amount, "ERC1155: Insufficient token balance");
             unchecked {
                 _balances[id][from] = fromBalance - amount;
             }
@@ -531,7 +528,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
             } catch Error(string memory reason) {
                 revert(reason);
             } catch {
-                revert("ERC1155: transfer to non ERC1155Receiver implementer");
+                revert("ERC1155: Transfer to non ERC1155Receiver");
             }
         }
     }
@@ -554,7 +551,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
             } catch Error(string memory reason) {
                 revert(reason);
             } catch {
-                revert("ERC1155: transfer to non ERC1155Receiver implementer");
+                revert("ERC1155: Transfer to non ERC1155Receiver");
             }
         }
     }
