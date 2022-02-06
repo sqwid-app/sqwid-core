@@ -1,5 +1,5 @@
 const { expect, assert } = require("chai");
-const { getContracts, throwsException } = require("./util");
+const { getMainContracts, throwsException } = require("./util");
 
 describe("************ NFT ******************", () => {
     let nft,
@@ -33,7 +33,7 @@ describe("************ NFT ******************", () => {
         royaltyValue = 1000; // 10%
 
         // Deploy or get existing contracts
-        const contracts = await getContracts(250, contractOwner);
+        const contracts = await getMainContracts(250, contractOwner);
         nft = contracts.nft;
     });
 

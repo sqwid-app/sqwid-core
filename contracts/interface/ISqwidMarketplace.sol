@@ -89,6 +89,8 @@ interface ISqwidMarketplace {
 
     function fetchAllItems() external view returns (ItemResponse[] memory);
 
+    function fetchAllAvailablePositions() external view returns (PositionResponse[] memory);
+
     function fetchPositionsByState(PositionState state)
         external
         view

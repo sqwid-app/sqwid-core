@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
+pragma solidity ^0.8.4;
+
+import "../../@openzeppelin/contracts/utils/Counters.sol";
+import "../interface/ISqwidMarketplace.sol";
+
 /**
  * Sample contract that migrated all data from an active market contract.
  */
-pragma solidity ^0.8.4;
-
-import "../@openzeppelin/contracts/utils/Counters.sol";
-import "./interface/ISqwidMarketplace.sol";
-
 contract MarketMigrationSample {
     using Counters for Counters.Counter;
 
@@ -74,7 +74,7 @@ contract MarketMigrationSample {
     mapping(uint256 => LoanData) public idToLoanData;
 
     constructor(address oldMarketplace) {
-        _setInitialData(oldMarketplace);
+        _getInitialData(oldMarketplace);
     }
 
     function fetchItemSales(uint256 itemId) external view returns (ItemSale[] memory) {
@@ -102,7 +102,7 @@ contract MarketMigrationSample {
         return (addresses, amounts);
     }
 
-    function _setInitialData(address oldMarketplace) private {
+    function _getInitialData(address oldMarketplace) private {
         // Items
         ISqwidMarketplace.ItemResponse[] memory items = ISqwidMarketplace(oldMarketplace)
             .fetchAllItems();

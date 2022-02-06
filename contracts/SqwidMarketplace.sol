@@ -6,6 +6,7 @@ import "../@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../@openzeppelin/contracts/utils/Counters.sol";
 import "../@openzeppelin/contracts/access/Ownable.sol";
 import "./interface/ISqwidERC1155.sol";
+import "./interface/INftRoyalties.sol";
 
 contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     using Counters for Counters.Counter;
@@ -106,9 +107,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 totalAddresses;
     }
 
-    // bytes4(keccak256("royaltyInfo(uint256,uint256)")) == 0x2a55205a
-    bytes4 private constant _INTERFACE_ID_ERC2981 = 0x2a55205a;
-
     Counters.Counter private _itemIds;
     Counters.Counter private _positionIds;
     mapping(uint256 => Item) private _idToItem;
@@ -188,6 +186,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 prevMarketFee;
         prevMarketFee = marketFee;
         marketFee = marketFee_;
+
         emit MarketFeeChanged(prevMarketFee, marketFee_);
     }
 
@@ -217,7 +216,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         address royaltyRecipient,
         uint256 royaltyValue,
         bool mutableMetadata
-    ) public returns (uint256) {
+    ) external {
         uint256 tokenId = ISqwidERC1155(nftContractAddress).mint(
             msg.sender,
             amount,
@@ -226,7 +225,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             royaltyValue,
             mutableMetadata
         );
-        return createItem(nftContractAddress, tokenId);
+        createItem(nftContractAddress, tokenId);
     }
 
     /**
@@ -484,24 +483,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     /////////////////////////// REGULAR SALE ////////////////////////////////////
 
     /**
-     * Puts on sale a new market item.
-     */
-    function putNewItemOnSale(
-        uint256 amount,
-        string memory tokenURI,
-        address royaltyRecipient,
-        uint256 royaltyValue,
-        bool mutableMetadata,
-        uint256 price
-    ) external {
-        // Mint and create market item
-        uint256 itemId = mint(amount, tokenURI, royaltyRecipient, royaltyValue, mutableMetadata);
-
-        // Put on sale
-        putItemOnSale(itemId, amount, price);
-    }
-
-    /**
      * Puts on sale existing market item.
      */
     function putItemOnSale(
@@ -634,25 +615,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     }
 
     /////////////////////////// AUCTION ////////////////////////////////////
-
-    /**
-     * Creates an auction for a new market item.
-     */
-    function createNewItemAuction(
-        uint256 amount,
-        string memory tokenURI,
-        address royaltyRecipient,
-        uint256 royaltyValue,
-        bool mutableMetadata,
-        uint256 numMinutes,
-        uint256 minBid
-    ) external {
-        // Mint and create market item
-        uint256 itemId = mint(amount, tokenURI, royaltyRecipient, royaltyValue, mutableMetadata);
-
-        // Create auction
-        createItemAuction(itemId, amount, numMinutes, minBid);
-    }
 
     /**
      * Creates an auction from an existing market item.
@@ -818,24 +780,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     }
 
     /////////////////////////// RAFFLE ////////////////////////////////////
-
-    /**
-     * Creates a raffle for a new market item.
-     */
-    function createNewItemRaffle(
-        uint256 amount,
-        string memory tokenURI,
-        address royaltyRecipient,
-        uint256 royaltyValue,
-        bool mutableMetadata,
-        uint256 numMinutes
-    ) external {
-        // Mint and create market item
-        uint256 itemId = mint(amount, tokenURI, royaltyRecipient, royaltyValue, mutableMetadata);
-
-        // Create raffle
-        createItemRaffle(itemId, amount, numMinutes);
-    }
 
     /**
      * Creates a raffle from an existing market item.
@@ -1021,32 +965,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     /////////////////////////// LOAN ////////////////////////////////////
 
     /**
-     * Creates a loan for a new market item.
-     */
-    function createNewItemLoan(
-        uint256 tokenAmount,
-        string memory tokenURI,
-        address royaltyRecipient,
-        uint256 royaltyValue,
-        bool mutableMetadata,
-        uint256 loanAmount,
-        uint256 feeAmount,
-        uint256 numMinutes
-    ) external {
-        // Mint and create market item
-        uint256 itemId = mint(
-            tokenAmount,
-            tokenURI,
-            royaltyRecipient,
-            royaltyValue,
-            mutableMetadata
-        );
-
-        // Create raffle
-        createItemLoan(itemId, loanAmount, feeAmount, tokenAmount, numMinutes);
-    }
-
-    /**
      * Creates a loan from an existing market item.
      */
     function createItemLoan(
@@ -1065,7 +983,8 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         require(loanAmount > 0, "SqwidMarket: Loan amount cannot be 0");
         require(feeAmount >= 0, "SqwidMarket: Fee cannot be negative");
         require(tokenAmount > 0, "SqwidMarket: Token amount cannot be 0");
-        require(numMinutes >= 1 && numMinutes <= 2628000, "SqwidMarket: Number of minutes invalid"); // 1,440 min = 1 day - 2,628,000 min = 5 years
+        require(numMinutes >= 1 && numMinutes <= 525600, "SqwidMarket: Number of minutes invalid");
+        // 1,440 min = 1 day - 525,600 min = 1 year
         // TODO change min numMinutes to 1440
 
         // Transfer ownership of the token to this contract
@@ -1264,10 +1183,8 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         address payable _seller
     ) private returns (uint256 netSaleAmount) {
         // Get amount of royalties to pay and recipient
-        (address royaltiesReceiver, uint256 royaltiesAmount) = IERC2981(_nftContract).royaltyInfo(
-            _tokenId,
-            _grossSaleValue
-        );
+        (address royaltiesReceiver, uint256 royaltiesAmount) = INftRoyalties(_nftContract)
+            .royaltyInfo(_tokenId, _grossSaleValue);
 
         // If seller and royalties receiver are the same, royalties will not be deduced
         if (_seller == royaltiesReceiver) {
@@ -1325,7 +1242,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         address nftContract = _idToItem[itemId].nftContract;
         uint256 tokenId = _idToItem[itemId].tokenId;
         address payable seller = _idToPosition[positionId].owner;
-        if (_checkRoyalties(nftContract)) {
+        if (IERC165(nftContract).supportsInterface(type(INftRoyalties).interfaceId)) {
             saleValue = _deduceRoyalties(nftContract, tokenId, saleValue, seller);
         }
 
@@ -1349,15 +1266,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             amount,
             ""
         );
-    }
-
-    /**
-     * Checks if a contract supports EIP-2981 for royalties.
-     * View EIP-165 (https://eips.ethereum.org/EIPS/eip-165).
-     */
-    function _checkRoyalties(address contractAddress) private view returns (bool) {
-        bool success = IERC165(contractAddress).supportsInterface(_INTERFACE_ID_ERC2981);
-        return success;
     }
 
     /**

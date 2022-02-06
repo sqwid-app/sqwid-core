@@ -3,19 +3,29 @@ pragma solidity ^0.8.4;
 
 import "../@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "../@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import "../@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
+import "../@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "../@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/Context.sol";
 import "../@openzeppelin/contracts/utils/Counters.sol";
 import "../@openzeppelin/contracts/access/Ownable.sol";
-import "./NftRoyalties.sol";
+import "./base/NftRoyalties.sol";
+import "./base/NftMutableUri.sol";
+import "./base/SqwidERC1155Wrapper.sol";
 
-contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
+contract SqwidERC1155 is
+    Context,
+    ERC165,
+    IERC1155,
+    NftRoyalties,
+    NftMutableUri,
+    Ownable,
+    SqwidERC1155Wrapper
+{
     using Counters for Counters.Counter;
     using Address for address;
-
-    // bytes4(keccak256("hasMutableURI(uint256))")) == 0xc962d178
-    bytes4 private constant _INTERFACE_ID_MUTABLE_URI = 0xc962d178;
 
     Counters.Counter private _tokenIds;
 
@@ -24,7 +34,6 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     mapping(address => mapping(address => bool)) private _operatorApprovals;
     mapping(uint256 => string) private _uris;
     mapping(bytes4 => bool) private _supportedInterfaces;
-    mapping(uint256 => bool) private _mutableMetadataMapping;
 
     /**
      * Mints a new token.
@@ -35,7 +44,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         string memory tokenURI,
         address royaltyRecipient,
         uint256 royaltyValue,
-        bool mutableMetadata
+        bool mutableUri
     ) public returns (uint256) {
         require(to != address(0), "ERC1155: mint to the zero address");
         require(amount > 0, "ERC1155: amount has to be larger than 0");
@@ -43,15 +52,6 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         uint256 tokenId = _tokenIds.current();
 
         address operator = _msgSender();
-
-        _beforeTokenTransfer(
-            operator,
-            address(0),
-            to,
-            _asSingletonArray(tokenId),
-            _asSingletonArray(amount),
-            ""
-        );
 
         _balances[tokenId][to] += amount;
         _updateOwners(tokenId, address(0), to, 0, 0);
@@ -64,7 +64,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         if (royaltyValue > 0) {
             _setTokenRoyalty(tokenId, royaltyRecipient, royaltyValue);
         }
-        _mutableMetadataMapping[tokenId] = mutableMetadata;
+        _setMutableURI(tokenId, mutableUri);
 
         return tokenId;
     }
@@ -78,14 +78,14 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         string[] memory tokenURIs,
         address[] memory royaltyRecipients,
         uint256[] memory royaltyValues,
-        bool[] memory mutableMetadatas
+        bool[] memory mutableUris
     ) public returns (uint256[] memory) {
         require(to != address(0), "ERC1155: mint to the 0 address");
         require(
             amounts.length == royaltyRecipients.length &&
                 amounts.length == tokenURIs.length &&
                 amounts.length == royaltyValues.length &&
-                amounts.length == mutableMetadatas.length,
+                amounts.length == mutableUris.length,
             "ERC1155: Arrays length mismatch"
         );
 
@@ -96,8 +96,6 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         }
 
         address operator = _msgSender();
-
-        _beforeTokenTransfer(operator, address(0), to, ids, amounts, "");
 
         for (uint256 i = 0; i < ids.length; i++) {
             _balances[ids[i]][to] += amounts[i];
@@ -112,7 +110,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
             if (royaltyValues[i] > 0) {
                 _setTokenRoyalty(ids[i], royaltyRecipients[i], royaltyValues[i]);
             }
-            _mutableMetadataMapping[ids[i]] = mutableMetadatas[i];
+            _setMutableURI(ids[i], mutableUris[i]);
             _uris[ids[i]] = tokenURIs[i];
         }
 
@@ -120,12 +118,8 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     }
 
     /**
-     * Returns whether or not a token has mutable URI.
+     * Returns token ids owned by an address.
      */
-    function hasMutableURI(uint256 tokenId) public view returns (bool mutableMetadata) {
-        return _mutableMetadataMapping[tokenId];
-    }
-
     function getTokensByOwner(address owner) public view returns (uint256[] memory) {
         uint256[] memory tokens = new uint256[](_tokenIds.current() + 1);
         for (uint256 i = 1; i <= _tokenIds.current(); i++) {
@@ -137,6 +131,9 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         return tokens;
     }
 
+    /**
+     * Returns total supply of a token.
+     */
     function getTokenSupply(uint256 _id) public view returns (uint256) {
         uint256 tokenSupply = 0;
         for (uint256 i = 0; i < getOwners(_id).length; i++) {
@@ -150,7 +147,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     /**
      * Returns the URI for a specific token by its id.
      */
-    function uri(uint256 tokenId) public view virtual returns (string memory) {
+    function uri(uint256 tokenId) public view returns (string memory) {
         return _uris[tokenId];
     }
 
@@ -163,38 +160,32 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
             balanceOf(msg.sender, tokenId) == getTokenSupply(tokenId),
             "ERC1155: Only owner can set URI"
         );
-        require(_mutableMetadataMapping[tokenId], "ERC1155: Token metadata is immutable");
+        require(hasMutableURI(tokenId), "ERC1155: Token metadata is immutable");
 
         _uris[tokenId] = uriValue;
     }
 
     /**
-     * @dev See {IERC1155-balanceOf}.
-     *
-     * Requirements:
-     *
-     * - `account` cannot be the zero address.
+     * Returns the addresses that own a certain token.
      */
-    function balanceOf(address account, uint256 id) public view virtual override returns (uint256) {
-        require(account != address(0), "ERC1155: Balance query for 0 address");
-        return _balances[id][account];
-    }
-
-    function getOwners(uint256 id) public view virtual returns (address[] memory) {
+    function getOwners(uint256 id) public view returns (address[] memory) {
         return _owners[id];
     }
 
     /**
-     * @dev See {IERC1155-balanceOfBatch}.
-     *
-     * Requirements:
-     *
-     * - `accounts` and `ids` must have the same length.
+     * Returns the balance of a token for an account.
+     */
+    function balanceOf(address account, uint256 id) public view override returns (uint256) {
+        require(account != address(0), "ERC1155: Balance query for 0 address");
+        return _balances[id][account];
+    }
+
+    /**
+     * Returns batch of the balance of a token for an account.
      */
     function balanceOfBatch(address[] memory accounts, uint256[] memory ids)
         public
         view
-        virtual
         override
         returns (uint256[] memory)
     {
@@ -210,9 +201,9 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     }
 
     /**
-     * @dev See {IERC1155-setApprovalForAll}.
+     * Sets approval over the contract for an operator.
      */
-    function setApprovalForAll(address operator, bool approved) public virtual override {
+    function setApprovalForAll(address operator, bool approved) public override {
         require(_msgSender() != operator, "ERC1155: Setting approval for self");
 
         _operatorApprovals[_msgSender()][operator] = approved;
@@ -220,12 +211,11 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     }
 
     /**
-     * @dev See {IERC1155-isApprovedForAll}.
+     * Returns whether an operator has approval for a certain account.
      */
     function isApprovedForAll(address account, address operator)
         public
         view
-        virtual
         override
         returns (bool)
     {
@@ -233,7 +223,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     }
 
     /**
-     * @dev See {IERC1155-safeTransferFrom}.
+     * Transfers an amount of tokens from one address to another address.
      */
     function safeTransferFrom(
         address from,
@@ -241,7 +231,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         uint256 id,
         uint256 amount,
         bytes memory data
-    ) public virtual override {
+    ) public override {
         require(
             from == _msgSender() || isApprovedForAll(from, _msgSender()),
             "ERC1155: Caller not owner nor approved"
@@ -250,7 +240,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     }
 
     /**
-     * @dev See {IERC1155-safeBatchTransferFrom}.
+     * Transfers amounts of different tokens from one address to another address.
      */
     function safeBatchTransferFrom(
         address from,
@@ -258,7 +248,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         uint256[] memory ids,
         uint256[] memory amounts,
         bytes memory data
-    ) public virtual override {
+    ) public override {
         require(
             from == _msgSender() || isApprovedForAll(from, _msgSender()),
             "ERC1155: Caller not owner nor approved"
@@ -267,18 +257,13 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     }
 
     /**
-     * @dev Destroys `amount` tokens of token type `id` from `account`
-     *
-     * Requirements:
-     *
-     * - `account` cannot be the zero address.
-     * - `account` must have at least `amount` tokens of token type `id`.
+     * Destroys an amount of tokens from an account.
      */
     function burn(
         address account,
         uint256 id,
         uint256 amount
-    ) public virtual {
+    ) public {
         require(
             account == _msgSender() || isApprovedForAll(account, _msgSender()),
             "ERC1155: Caller not owner nor approved"
@@ -286,15 +271,6 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         require(account != address(0), "ERC1155: Burn from 0 address");
 
         address operator = _msgSender();
-
-        _beforeTokenTransfer(
-            operator,
-            account,
-            address(0),
-            _asSingletonArray(id),
-            _asSingletonArray(amount),
-            ""
-        );
 
         uint256 accountBalance = _balances[id][account];
         require(accountBalance >= amount, "ERC1155: Burn amount exceeds balance");
@@ -307,17 +283,13 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     }
 
     /**
-     * @dev xref:ROOT:erc1155.adoc#batch-operations[Batched] version of {_burn}.
-     *
-     * Requirements:
-     *
-     * - `ids` and `amounts` must have the same length.
+     * Destroys amounts of different tokens from an account.
      */
     function burnBatch(
         address account,
         uint256[] memory ids,
         uint256[] memory amounts
-    ) public virtual {
+    ) public {
         require(
             account == _msgSender() || isApprovedForAll(account, _msgSender()),
             "ERC1155: Caller not owner nor approved"
@@ -326,8 +298,6 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         require(ids.length == amounts.length, "ERC1155: Arrays length mismatch");
 
         address operator = _msgSender();
-
-        _beforeTokenTransfer(operator, account, address(0), ids, amounts, "");
 
         for (uint256 i = 0; i < ids.length; i++) {
             uint256 id = ids[i];
@@ -350,20 +320,173 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        virtual
-        override(ERC165, IERC165)
+        override(ERC165, IERC165, ERC1155Receiver, NftRoyalties, NftMutableUri)
         returns (bool)
     {
-        return
-            interfaceId == _INTERFACE_ID_ERC2981 ||
-            interfaceId == _INTERFACE_ID_MUTABLE_URI ||
-            super.supportsInterface(interfaceId);
+        return super.supportsInterface(interfaceId);
     }
 
-    ///////////////////////// INTERNAL FUNCTIONS //////////////////////////////
+    /**
+     * Wraps ERC721 token from a different contract.
+     */
+    function wrapERC721(address extNftContract, uint256 extTokenId)
+        external
+        override
+        returns (uint256)
+    {
+        require(
+            IERC165(extNftContract).supportsInterface(type(IERC721).interfaceId),
+            "ERC1155: Contract is not ERC721"
+        );
+        require(
+            IERC165(extNftContract).supportsInterface(type(IERC721Metadata).interfaceId),
+            "ERC1155: No metadata standard"
+        );
+        require(
+            IERC721(extNftContract).ownerOf(extTokenId) == msg.sender,
+            "ERC1155: Sender is not token owner"
+        );
+
+        IERC721(extNftContract).safeTransferFrom(msg.sender, address(this), extTokenId);
+
+        uint256 tokenId = _getWrappedTokenId(extNftContract, extTokenId);
+        if (tokenId > 0) {
+            // Update amount for existing wrapped token
+            _increaseSupply(tokenId, 1);
+        } else {
+            // Create new wrapped token
+            address royaltyRecipient;
+            uint256 royaltyValue;
+            if (IERC165(extNftContract).supportsInterface(type(INftRoyalties).interfaceId)) {
+                (royaltyRecipient, royaltyValue) = INftRoyalties(extNftContract).royaltyInfo(
+                    extTokenId,
+                    10000
+                );
+            }
+            string memory uri_ = IERC721Metadata(extNftContract).tokenURI(extTokenId);
+            tokenId = mint(msg.sender, 1, uri_, royaltyRecipient, royaltyValue, false);
+
+            _wrappedTokens[tokenId] = WrappedToken(tokenId, true, extTokenId, extNftContract);
+            _wrappedCounter.increment();
+        }
+
+        emit WrapToken(tokenId, true, extTokenId, extNftContract, 1, true);
+
+        return tokenId;
+    }
 
     /**
-     * @dev Updates the owners of token `id`
+     * Unwraps ERC721 token previously wrapped.
+     */
+    function unwrapERC721(uint256 tokenId) external override {
+        require(balanceOf(msg.sender, tokenId) == 1, "ERC1155: Not token owned to unwrap");
+
+        WrappedToken memory wrappedToken = getWrappedToken(tokenId);
+
+        burn(msg.sender, tokenId, 1);
+
+        IERC721(wrappedToken.extNftContract).safeTransferFrom(
+            address(this),
+            msg.sender,
+            wrappedToken.extTokenId
+        );
+
+        emit WrapToken(
+            tokenId,
+            true,
+            wrappedToken.extTokenId,
+            wrappedToken.extNftContract,
+            1,
+            false
+        );
+    }
+
+    /**
+     * Wraps ERC1155 token from a different contract.
+     */
+    function wrapERC1155(
+        address extNftContract,
+        uint256 extTokenId,
+        uint256 amount
+    ) external override returns (uint256) {
+        require(
+            IERC165(extNftContract).supportsInterface(type(IERC1155).interfaceId),
+            "ERC1155: Contract is not ERC1155"
+        );
+        require(
+            IERC165(extNftContract).supportsInterface(type(IERC1155MetadataURI).interfaceId),
+            "ERC1155: No metadata standard"
+        );
+        require(
+            IERC1155(extNftContract).balanceOf(msg.sender, extTokenId) >= amount,
+            "ERC1155: Not enough tokens owned"
+        );
+
+        IERC1155(extNftContract).safeTransferFrom(
+            msg.sender,
+            address(this),
+            extTokenId,
+            amount,
+            ""
+        );
+
+        uint256 tokenId = _getWrappedTokenId(extNftContract, extTokenId);
+        if (tokenId > 0) {
+            // Update amount for existing wrapped token
+            _increaseSupply(tokenId, amount);
+        } else {
+            // Create new wrapped token
+            address royaltyRecipient;
+            uint256 royaltyValue;
+            if (IERC1155(extNftContract).supportsInterface(type(INftRoyalties).interfaceId)) {
+                (royaltyRecipient, royaltyValue) = INftRoyalties(extNftContract).royaltyInfo(
+                    extTokenId,
+                    10000
+                );
+            }
+            string memory uri_ = IERC1155MetadataURI(extNftContract).uri(extTokenId);
+
+            tokenId = mint(msg.sender, amount, uri_, royaltyRecipient, royaltyValue, false);
+            _wrappedTokens[tokenId] = WrappedToken(tokenId, false, extTokenId, extNftContract);
+            _wrappedCounter.increment();
+        }
+
+        emit WrapToken(tokenId, false, extTokenId, extNftContract, amount, true);
+
+        return tokenId;
+    }
+
+    /**
+     * Unwraps ERC1155 token previously wrapped.
+     */
+    function unwrapERC1155(uint256 tokenId) external override {
+        uint256 balance = balanceOf(msg.sender, tokenId);
+        require(balance > 0, "ERC1155: Not enough tokens owner");
+
+        WrappedToken memory wrappedToken = getWrappedToken(tokenId);
+
+        burn(msg.sender, wrappedToken.tokenId, balance);
+
+        IERC1155(wrappedToken.extNftContract).safeTransferFrom(
+            address(this),
+            msg.sender,
+            wrappedToken.extTokenId,
+            balance,
+            ""
+        );
+
+        emit WrapToken(
+            tokenId,
+            false,
+            wrappedToken.extTokenId,
+            wrappedToken.extNftContract,
+            balance,
+            false
+        );
+    }
+
+    /**
+     * Updates the owners of a token
      */
     function _updateOwners(
         uint256 id,
@@ -390,16 +513,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     }
 
     /**
-     * @dev Transfers `amount` tokens of token type `id` from `from` to `to`.
-     *
-     * Emits a {TransferSingle} event.
-     *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - `from` must have a balance of tokens of type `id` of at least `amount`.
-     * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155Received}
-     * and return the acceptance magic value.
+     * Transfers an amount of tokens from one address to another address.
      */
     function _safeTransferFrom(
         address from,
@@ -407,19 +521,10 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         uint256 id,
         uint256 amount,
         bytes memory data
-    ) internal virtual {
+    ) internal {
         require(to != address(0), "ERC1155: Transfer to 0 address");
 
         address operator = _msgSender();
-
-        _beforeTokenTransfer(
-            operator,
-            from,
-            to,
-            _asSingletonArray(id),
-            _asSingletonArray(amount),
-            data
-        );
 
         uint256 fromBalance = _balances[id][from];
         uint256 toBalance = _balances[id][to];
@@ -438,14 +543,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     }
 
     /**
-     * @dev xref:ROOT:erc1155.adoc#batch-operations[Batched] version of {_safeTransferFrom}.
-     *
-     * Emits a {TransferBatch} event.
-     *
-     * Requirements:
-     *
-     * - If `to` refers to a smart contract, it must implement
-     * {IERC1155Receiver-onERC1155BatchReceived} and return the acceptance magic value.
+     * Transfers amounts of differnt tokens from one address to another address.
      */
     function _safeBatchTransferFrom(
         address from,
@@ -453,13 +551,11 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         uint256[] memory ids,
         uint256[] memory amounts,
         bytes memory data
-    ) internal virtual {
+    ) internal {
         require(ids.length == amounts.length, "ERC1155: Arrays length mismatch");
         require(to != address(0), "ERC1155: Transfer to 0 address");
 
         address operator = _msgSender();
-
-        _beforeTokenTransfer(operator, from, to, ids, amounts, data);
 
         for (uint256 i = 0; i < ids.length; ++i) {
             uint256 id = ids[i];
@@ -481,35 +577,8 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
     }
 
     /**
-     * @dev Hook that is called before any token transfer. This includes minting
-     * and burning, as well as batched variants.
-     *
-     * The same hook is called on both single and batched variants. For single
-     * transfers, the length of the `id` and `amount` arrays will be 1.
-     *
-     * Calling conditions (for each `id` and `amount` pair):
-     *
-     * - When `from` and `to` are both non-zero, `amount` of ``from``'s tokens
-     * of token type `id` will be  transferred to `to`.
-     * - When `from` is zero, `amount` tokens of token type `id` will be minted
-     * for `to`.
-     * - when `to` is zero, `amount` of ``from``'s tokens of token type `id`
-     * will be burned.
-     * - `from` and `to` are never both zero.
-     * - `ids` and `amounts` have the same, non-zero length.
-     *
-     * To learn more about hooks, head to xref:ROOT:
-     * extending-contracts.adoc#using-hooks[Using Hooks].
+     * Checks if a token transfer has been accepted.
      */
-    function _beforeTokenTransfer(
-        address operator,
-        address from,
-        address to,
-        uint256[] memory ids,
-        uint256[] memory amounts,
-        bytes memory data
-    ) internal virtual {}
-
     function _doSafeTransferAcceptanceCheck(
         address operator,
         address from,
@@ -533,6 +602,9 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         }
     }
 
+    /**
+     * Checks if a batch token transfer has been accepted.
+     */
     function _doSafeBatchTransferAcceptanceCheck(
         address operator,
         address from,
@@ -556,10 +628,37 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable {
         }
     }
 
+    /**
+     * Wraps a uint256 into an array.
+     */
     function _asSingletonArray(uint256 element) private pure returns (uint256[] memory) {
         uint256[] memory array = new uint256[](1);
         array[0] = element;
 
         return array;
+    }
+
+    /**
+     * Increases amount of total supply for wrapped ERC1155 token.
+     */
+    function _increaseSupply(uint256 tokenId, uint256 amount)
+        internal
+        override
+        wrappedExists(tokenId)
+    {
+        require(
+            !_wrappedTokens[tokenId].isErc721 || getTokenSupply(tokenId) == 0,
+            "ERC1155: ERC721 cannot increase supply"
+        );
+
+        address to = _msgSender();
+
+        uint256 toBalance = _balances[tokenId][to];
+        _balances[tokenId][to] += amount;
+
+        _updateOwners(tokenId, address(0), to, 0, toBalance);
+        emit TransferSingle(to, address(0), to, tokenId, amount);
+
+        _doSafeTransferAcceptanceCheck(to, address(0), to, tokenId, amount, "");
     }
 }

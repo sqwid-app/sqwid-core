@@ -1,24 +1,28 @@
 const { expect } = require("chai");
-const { getContracts, formatBigNumber, getBalance, throwsException, delay } = require("./util");
-const ReefAbi = require("./ReefToken.json");
+const {
+    getMainContracts,
+    getBalanceHelper,
+    formatBigNumber,
+    getBalance,
+    throwsException,
+    delay,
+} = require("./util");
 
 describe("************ Auctions ******************", () => {
     let market,
         nft,
+        balanceHelper,
         owner,
         seller,
         artist,
         buyer1,
         buyer2,
         marketFee,
-        marketContractAddress,
-        nftContractAddress,
         ownerAddress,
         sellerAddress,
         artistAddress,
         buyer1Address,
         buyer2Address,
-        reefToken,
         deadline,
         tokenId,
         itemId,
@@ -48,10 +52,6 @@ describe("************ Auctions ******************", () => {
         buyer2Address = await buyer2.getAddress();
         artistAddress = await artist.getAddress();
 
-        // Initialize and connect to Reef token
-        const ReefToken = new ethers.Contract(config.contracts.reef, ReefAbi, owner);
-        reefToken = ReefToken.connect(owner);
-
         // Initialize global variables
         marketFee = 250; // 2.5%
         maxGasFee = ethers.utils.parseUnits("10", "ether");
@@ -65,40 +65,36 @@ describe("************ Auctions ******************", () => {
         royaltyValue = 1000; // 10%
 
         // Deploy or get existing contracts
-        const contracts = await getContracts(marketFee, owner);
+        const contracts = await getMainContracts(marketFee, owner);
         nft = contracts.nft;
         market = contracts.market;
-        nftContractAddress = nft.address;
-        marketContractAddress = market.address;
+        balanceHelper = await getBalanceHelper();
     });
 
     it("Should create auction", async () => {
         // Approve market contract
         console.log("\tcreating approval for market contract...");
-        await nft.connect(seller).setApprovalForAll(marketContractAddress, true);
+        await nft.connect(seller).setApprovalForAll(market.address, true);
         console.log("\tapproval created");
 
         // Initial data
         const iniAuctions = await market.fetchPositionsByState(2);
 
+        // Create token and add to the market
+        console.log("\tcreating market item...");
+        const tx1 = await market
+            .connect(seller)
+            .mint(tokensAmount, "https://fake-uri.com", artistAddress, royaltyValue, true);
+        const receipt1 = await tx1.wait();
+        itemId = receipt1.events[2].args[0].toNumber();
+        tokenId = receipt1.events[2].args[2].toNumber();
+        console.log(`\tNFT created with tokenId ${tokenId}`);
+        console.log(`\tMarket item created with itemId ${itemId}`);
+
         // Create auction
         console.log("\tseller creating auction...");
-        await getBalance(reefToken, sellerAddress, "seller");
-        tx = await market
-            .connect(seller)
-            .createNewItemAuction(
-                tokensAmount,
-                "https://fake-uri.com",
-                artistAddress,
-                royaltyValue,
-                true,
-                numMinutes,
-                minBid
-            );
-        const receipt = await tx.wait();
-        tokenId = receipt.events[2].args[2].toNumber();
+        await market.connect(seller).createItemAuction(itemId, tokensAmount, numMinutes, minBid);
         console.log("\tauction created.");
-        await getBalance(reefToken, sellerAddress, "seller");
 
         // Final data
         const endAuctions = await market.fetchPositionsByState(2);
@@ -110,7 +106,7 @@ describe("************ Auctions ******************", () => {
         // Evaluate results
         expect(endAuctions.length).to.equal(iniAuctions.length + 1);
         expect(tokenUri).to.equal("https://fake-uri.com");
-        expect(auction.item.nftContract).to.equal(nftContractAddress);
+        expect(auction.item.nftContract).to.equal(nft.address);
         expect(Number(auction.item.tokenId)).to.equal(tokenId);
         expect(auction.owner).to.equal(sellerAddress);
         expect(Number(auction.amount)).to.equal(tokensAmount);
@@ -132,8 +128,8 @@ describe("************ Auctions ******************", () => {
 
     it("Should create bid", async () => {
         // Initial data
-        const iniBuyer1Balance = await getBalance(reefToken, buyer1Address, "buyer1");
-        const iniMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
+        const iniBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
+        const iniMarketBalance = await getBalance(balanceHelper, market.address, "market");
 
         // Creates bid
         console.log("\tbuyer1 creating bid...");
@@ -141,8 +137,8 @@ describe("************ Auctions ******************", () => {
         console.log("\tbid created");
 
         // Final data
-        const endBuyer1Balance = await getBalance(reefToken, buyer1Address, "buyer1");
-        const endMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
+        const endBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
+        const endMarketBalance = await getBalance(balanceHelper, market.address, "market");
         const oldDeadline = deadline;
         const auctionData = (await market.fetchPosition(auctionId)).auctionData;
         deadline = new Date(auctionData.deadline * 1000);
@@ -188,9 +184,9 @@ describe("************ Auctions ******************", () => {
 
     it("Should extend auction deadline", async () => {
         // Initial data
-        const iniBuyer1Balance = await getBalance(reefToken, buyer1Address, "buyer1");
-        const iniBuyer2Balance = await getBalance(reefToken, buyer2Address, "buyer2");
-        const iniMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
+        const iniBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
+        const iniBuyer2Balance = await getBalance(balanceHelper, buyer2Address, "buyer2");
+        const iniMarketBalance = await getBalance(balanceHelper, market.address, "market");
 
         // Wait until 10 minutes before deadline
         const timeUntilDeadline = deadline - new Date();
@@ -208,9 +204,9 @@ describe("************ Auctions ******************", () => {
         console.log("\tbid created");
 
         // Final data
-        const endBuyer1Balance = await getBalance(reefToken, buyer1Address, "buyer1");
-        const endBuyer2Balance = await getBalance(reefToken, buyer2Address, "buyer2");
-        const endMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
+        const endBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
+        const endBuyer2Balance = await getBalance(balanceHelper, buyer2Address, "buyer2");
+        const endMarketBalance = await getBalance(balanceHelper, market.address, "market");
         const oldDeadline = deadline;
         const auctionData = (await market.fetchPosition(auctionId)).auctionData;
         deadline = new Date(auctionData.deadline * 1000);
@@ -235,11 +231,11 @@ describe("************ Auctions ******************", () => {
 
     it.skip("Should end auction with bids", async () => {
         // Initial data
-        const iniSellerBalance = await getBalance(reefToken, sellerAddress, "seller");
-        const iniArtistBalance = await getBalance(reefToken, artistAddress, "artist");
+        const iniSellerBalance = await getBalance(balanceHelper, sellerAddress, "seller");
+        const iniArtistBalance = await getBalance(balanceHelper, artistAddress, "artist");
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
-        const iniMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
-        await getBalance(reefToken, buyer1Address, "buyer1");
+        const iniMarketBalance = await getBalance(balanceHelper, market.address, "market");
+        await getBalance(balanceHelper, buyer1Address, "buyer1");
         const auctions = await market.fetchPositionsByState(2);
         const iniNumAuctions = auctions.length;
         const auction = auctions.at(-1);
@@ -268,13 +264,13 @@ describe("************ Auctions ******************", () => {
 
         // Final data
         const endItem = await market.fetchItem(itemId);
-        const endSellerBalance = await getBalance(reefToken, sellerAddress, "seller");
-        const endArtistBalance = await getBalance(reefToken, artistAddress, "artist");
+        const endSellerBalance = await getBalance(balanceHelper, sellerAddress, "seller");
+        const endArtistBalance = await getBalance(balanceHelper, artistAddress, "artist");
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
-        const endMarketBalance = await getBalance(reefToken, marketContractAddress, "market");
+        const endMarketBalance = await getBalance(balanceHelper, market.address, "market");
         const royaltiesAmount = (bid4Amount * royaltyValue) / 10000;
         const marketFeeAmount = ((bid4Amount - royaltiesAmount) * marketFee) / 10000;
-        await getBalance(reefToken, buyer1Address, "buyer1");
+        await getBalance(balanceHelper, buyer1Address, "buyer1");
         const endBuyer2TokenAmount = await nft.balanceOf(buyer2Address, tokenId);
         const endNumAuctions = (await market.fetchPositionsByState(2)).length;
 
@@ -294,31 +290,23 @@ describe("************ Auctions ******************", () => {
                 formatBigNumber(royaltiesAmount) -
                 formatBigNumber(marketFeeAmount)
         );
-        const diff =
-            endMarketBalance -
-            (iniMarketBalance -
+        expect(endMarketBalance).to.equal(
+            iniMarketBalance -
                 formatBigNumber(bid4Amount) +
                 formatBigNumber(endOwnerMarketBalance) -
-                formatBigNumber(iniOwnerMarketBalance));
-        console.log("diff", diff);
-        expect(diff).to.lt(0.1); // TODO should be zero, but getting a small difference.
-        // expect(endMarketBalance).to.equal(
-        //     iniMarketBalance -
-        //         formatBigNumber(bid4Amount) +
-        //         formatBigNumber(endOwnerMarketBalance) -
-        //         formatBigNumber(iniOwnerMarketBalance)
-        // );
+                formatBigNumber(iniOwnerMarketBalance)
+        );
     });
 
     it.skip("Should end auction without bids", async () => {
         // Initial data
-        const iniBuyer2Balance = await getBalance(reefToken, buyer2Address, "buyer1");
+        const iniBuyer2Balance = await getBalance(balanceHelper, buyer2Address, "buyer1");
         const iniBuyer2TokenAmount = Number(await nft.balanceOf(buyer2Address, tokenId));
         const iniNumAuctions = (await market.fetchPositionsByState(2)).length;
 
         // Approve market contract for this address
         console.log("\tcreating approval for market contract...");
-        await nft.connect(buyer2).setApprovalForAll(marketContractAddress, true);
+        await nft.connect(buyer2).setApprovalForAll(market.address, true);
         console.log("\tapproval created");
 
         // Create auction
@@ -326,7 +314,7 @@ describe("************ Auctions ******************", () => {
         const receipt = await tx.wait();
         auctionId = receipt.events[1].args[0];
         console.log("\tauction created.");
-        await getBalance(reefToken, buyer2Address, "buyer2");
+        await getBalance(balanceHelper, buyer2Address, "buyer2");
 
         // Try to end auction
         console.log("\tending auction...");
@@ -352,7 +340,7 @@ describe("************ Auctions ******************", () => {
         console.log("\tauction ended.");
 
         // Final data
-        const endBuyer2Balance = await getBalance(reefToken, buyer2Address, "buyer2");
+        const endBuyer2Balance = await getBalance(balanceHelper, buyer2Address, "buyer2");
         const endBuyer2TokenAmount = Number(await nft.balanceOf(buyer2Address, tokenId));
         const endNumAuctions = (await market.fetchPositionsByState(2)).length;
 
