@@ -16,7 +16,7 @@ describe("************ Migration ******************", () => {
         market = await Market.attach(marketContractAddress);
 
         console.log("\tdeploying migration contract...");
-        let Migration = await reef.getContractFactory("MarketMigrationSample", owner);
+        const Migration = await reef.getContractFactory("MarketMigrationSample", owner);
         migration = await Migration.deploy(marketContractAddress);
         await migration.deployed();
         console.log(`\tMigration contact deployed ${migration.address}`);

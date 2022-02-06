@@ -2,8 +2,7 @@ const { expect, assert } = require("chai");
 const { getMainContracts, getDummyNfts, throwsException } = require("./util");
 
 describe("************ Wrapper ******************", () => {
-    let market,
-        dummyERC721,
+    let dummyERC721,
         dummyERC721Royalties,
         dummyERC1155,
         sqwidNft,
@@ -47,9 +46,7 @@ describe("************ Wrapper ******************", () => {
         // Deploy or get existing contracts
         const contracts = await getMainContracts(marketFee, owner);
         sqwidNft = contracts.nft;
-        market = contracts.market;
         sqwidNftAddress = sqwidNft.address;
-        marketContractAddress = market.address;
         const dummyNftContract = await getDummyNfts();
         dummyERC721 = dummyNftContract.dummyERC721;
         dummyERC1155 = dummyNftContract.dummyERC1155;

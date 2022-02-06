@@ -100,7 +100,7 @@ exports.getDummyNfts = async () => {
         console.log("\tdeploying Market contract...");
         const DummyERC1155 = await reef.getContractFactory("DummyERC1155");
         dummyERC1155 = await DummyERC1155.deploy();
-        await mummyERC1155.deployed();
+        await dummyERC1155.deployed();
         dummyERC1155Address = dummyERC1155.address;
     } else {
         // Get deployed contract
@@ -114,7 +114,7 @@ exports.getDummyNfts = async () => {
         console.log("\tdeploying Market contract...");
         const DummyERC721Roy = await reef.getContractFactory("DummyERC721Royalties");
         dummyERC721Roy = await DummyERC721Roy.deploy();
-        await mummyERC721Roy.deployed();
+        await dummyERC721Roy.deployed();
         dummyERC721RoyAddress = dummyERC721Roy.address;
     } else {
         // Get deployed contract

@@ -8,7 +8,7 @@ const {
     delay,
 } = require("./util");
 
-describe.only("************ Loans ******************", () => {
+describe("************ Loans ******************", () => {
     let market,
         nft,
         balanceHelper,
@@ -141,7 +141,7 @@ describe.only("************ Loans ******************", () => {
         expect(endLoans.length).to.equal(iniLoans.length - 1);
     });
 
-    it("Should fund loan", async () => {
+    it.only("Should fund loan", async () => {
         // Create new loan proposal
         console.log("\tborrower creating loan proposal...");
         await getBalance(balanceHelper, borrowerAddress, "borrower");
@@ -175,8 +175,8 @@ describe.only("************ Loans ******************", () => {
 
         // Evaluate results
         expect(loan.loanData.lender).to.equal(lenderAddress);
-        expect(endBorrowerBalance * 1e18).to.equals(
-            iniBorrowerBalance * 1e18 + Number(loanAmount) - Number(marketFeeAmount)
+        expect(endBorrowerBalance).to.equals(
+            iniBorrowerBalance + formatBigNumber(loanAmount) - formatBigNumber(marketFeeAmount)
         );
         expect(endLenderBalance * 1e18)
             .to.lte(iniLenderBalance * 1e18 - Number(loanAmount))
