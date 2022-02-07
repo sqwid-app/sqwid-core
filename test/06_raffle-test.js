@@ -81,7 +81,7 @@ describe("************ Raffles ******************", () => {
         console.log("\tcreating market item...");
         const tx1 = await market
             .connect(seller)
-            .mint(tokensAmount, "https://fake-uri.com", artistAddress, royaltyValue, true);
+            .mint(tokensAmount, "https://fake-uri.com", artistAddress, royaltyValue);
         const receipt1 = await tx1.wait();
         itemId = receipt1.events[2].args[0].toNumber();
         tokenId = receipt1.events[2].args[2].toNumber();
@@ -279,14 +279,7 @@ describe("************ Raffles ******************", () => {
         console.log("\tcreating token...");
         const tx1 = await nft
             .connect(seller)
-            .mint(
-                sellerAddress,
-                tokensAmount,
-                "https://fake-uri.com",
-                artistAddress,
-                royaltyValue,
-                true
-            );
+            .mint(sellerAddress, tokensAmount, "https://fake-uri.com", artistAddress, royaltyValue);
         const receipt1 = await tx1.wait();
         tokenId = receipt1.events[0].args[3].toNumber();
         console.log(`\tNFT created with tokenId ${tokenId}`);
@@ -298,7 +291,7 @@ describe("************ Raffles ******************", () => {
         const iniTokenPositions = iniSellerPositions.filter((pos) => pos.item.tokenId == tokenId);
 
         // Create market item
-        const tx2 = await market.connect(seller).createItem(nft.address, tokenId);
+        const tx2 = await market.connect(seller).createItem(tokenId);
         const receipt2 = await tx2.wait();
         itemId = receipt2.events[1].args[0].toNumber();
 

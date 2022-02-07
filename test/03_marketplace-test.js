@@ -43,7 +43,7 @@ describe("************ Marketplace ******************", () => {
         console.log("\tcreating market item...");
         const tx = await market
             .connect(creator)
-            .mint(10, "https://fake-uri-1.com", artistAddress, royaltyValue, true);
+            .mint(10, "https://fake-uri-1.com", artistAddress, royaltyValue);
         const receipt = await tx.wait();
         const itemId = receipt.events[2].args[0].toNumber();
         const tokenId = receipt.events[2].args[2].toNumber();
@@ -58,7 +58,6 @@ describe("************ Marketplace ******************", () => {
         expect(royaltyInfo.receiver).to.equal(artistAddress);
         expect(Number(royaltyInfo.royaltyAmount)).to.equal(royaltyValue);
         expect(Number(await nft.balanceOf(creatorAddress, tokenId))).to.equal(10);
-        assert(await nft.hasMutableURI(tokenId));
         expect(await nft.uri(tokenId)).to.equal("https://fake-uri-1.com");
         expect(Number(await nft.getTokenSupply(tokenId))).to.equal(10);
 
@@ -80,8 +79,7 @@ describe("************ Marketplace ******************", () => {
                 [10, 1],
                 ["https://fake-uri-2.com", "https://fake-uri-3.com"],
                 [artistAddress, ownerAddress],
-                [royaltyValue, 200],
-                [true, false]
+                [royaltyValue, 200]
             );
         const receipt = await tx.wait();
         const item1Id = receipt.events[2].args[0].toNumber();
@@ -105,8 +103,6 @@ describe("************ Marketplace ******************", () => {
         expect(Number(royaltyInfo2.royaltyAmount)).to.equal(200);
         expect(Number(await nft.balanceOf(creatorAddress, token1Id))).to.equal(10);
         expect(Number(await nft.balanceOf(creatorAddress, token2Id))).to.equal(1);
-        assert(await nft.hasMutableURI(token1Id));
-        assert(!(await nft.hasMutableURI(token2Id)));
         expect(await nft.uri(token1Id)).to.equal("https://fake-uri-2.com");
         expect(await nft.uri(token2Id)).to.equal("https://fake-uri-3.com");
         expect(Number(await nft.getTokenSupply(token1Id))).to.equal(10);
@@ -130,13 +126,13 @@ describe("************ Marketplace ******************", () => {
         console.log("\tcreating token...");
         const tx1 = await nft
             .connect(creator)
-            .mint(creatorAddress, 1, "https://fake-uri-1.com", artistAddress, royaltyValue, true);
+            .mint(creatorAddress, 1, "https://fake-uri-1.com", artistAddress, royaltyValue);
         const receipt1 = await tx1.wait();
         const tokenId = receipt1.events[0].args[3].toNumber();
         console.log(`\tNFT created with tokenId ${tokenId}`);
 
         // Create market item
-        const tx2 = await market.connect(creator).createItem(nft.address, tokenId);
+        const tx2 = await market.connect(creator).createItem(tokenId);
         const receipt2 = await tx2.wait();
         const itemId = receipt2.events[1].args[0].toNumber();
 
@@ -155,14 +151,14 @@ describe("************ Marketplace ******************", () => {
         console.log("\tcreating token...");
         const tx1 = await nft
             .connect(creator)
-            .mint(creatorAddress, 100, "https://fake-uri-1.com", artistAddress, royaltyValue, true);
+            .mint(creatorAddress, 100, "https://fake-uri-1.com", artistAddress, royaltyValue);
         const receipt1 = await tx1.wait();
         const tokenId = receipt1.events[0].args[3].toNumber();
         console.log(`\tNFT created with tokenId ${tokenId}`);
 
         // Create market item
         console.log("\tcreating market item...");
-        const tx2 = await market.connect(creator).createItem(nft.address, tokenId);
+        const tx2 = await market.connect(creator).createItem(tokenId);
         const receipt2 = await tx2.wait();
         const itemId = receipt2.events[1].args[0].toNumber();
         console.log(`\tMarket item created with id ${itemId}.`);

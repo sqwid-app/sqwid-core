@@ -7,8 +7,7 @@ interface ISqwidERC1155 {
         uint256 amount,
         string memory tokenURI,
         address royaltyRecipient,
-        uint256 royaltyValue,
-        bool mutableMetada
+        uint256 royaltyValue
     ) external returns (uint256);
 
     function mintBatch(
@@ -16,8 +15,7 @@ interface ISqwidERC1155 {
         uint256[] memory amounts,
         string[] memory tokenURIs,
         address[] memory royaltyRecipients,
-        uint256[] memory royaltyValues,
-        bool[] memory mutableMetadatas
+        uint256[] memory royaltyValues
     ) external returns (uint256[] memory);
 
     function burn(

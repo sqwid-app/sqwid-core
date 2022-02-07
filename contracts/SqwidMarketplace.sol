@@ -214,18 +214,16 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 amount,
         string memory tokenURI,
         address royaltyRecipient,
-        uint256 royaltyValue,
-        bool mutableMetadata
+        uint256 royaltyValue
     ) external {
         uint256 tokenId = ISqwidERC1155(nftContractAddress).mint(
             msg.sender,
             amount,
             tokenURI,
             royaltyRecipient,
-            royaltyValue,
-            mutableMetadata
+            royaltyValue
         );
-        createItem(nftContractAddress, tokenId);
+        createItem(tokenId);
     }
 
     /**
@@ -235,28 +233,26 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256[] memory amounts,
         string[] memory tokenURIs,
         address[] memory royaltyRecipients,
-        uint256[] memory royaltyValues,
-        bool[] memory mutableMetadatas
+        uint256[] memory royaltyValues
     ) external {
         uint256[] memory tokenIds = ISqwidERC1155(nftContractAddress).mintBatch(
             msg.sender,
             amounts,
             tokenURIs,
             royaltyRecipients,
-            royaltyValues,
-            mutableMetadatas
+            royaltyValues
         );
         for (uint256 i; i < tokenIds.length; i++) {
-            createItem(nftContractAddress, tokenIds[i]);
+            createItem(tokenIds[i]);
         }
     }
 
     /**
      * Creates new market item.
      */
-    function createItem(address nftContract, uint256 tokenId) public returns (uint256) {
+    function createItem(uint256 tokenId) public returns (uint256) {
         require(
-            ISqwidERC1155(nftContract).balanceOf(msg.sender, tokenId) > 0,
+            ISqwidERC1155(nftContractAddress).balanceOf(msg.sender, tokenId) > 0,
             "SqwidMarket: Address balance too low"
         );
 
@@ -264,7 +260,8 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 totalItemCount = _itemIds.current();
         for (uint256 i; i < totalItemCount; i++) {
             if (
-                _idToItem[i + 1].nftContract == nftContract && _idToItem[i + 1].tokenId == tokenId
+                _idToItem[i + 1].nftContract == nftContractAddress &&
+                _idToItem[i + 1].tokenId == tokenId
             ) {
                 revert("SqwidMarket: Item already exists");
             }
@@ -274,14 +271,14 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _itemIds.increment();
         uint256 itemId = _itemIds.current();
         _idToItem[itemId].itemId = itemId;
-        _idToItem[itemId].nftContract = nftContract;
+        _idToItem[itemId].nftContract = nftContractAddress;
         _idToItem[itemId].tokenId = tokenId;
         _idToItem[itemId].creator = msg.sender;
         _idToItem[itemId].positionCount = 0;
 
         _updateAvailablePosition(itemId, msg.sender);
 
-        emit ItemCreated(itemId, nftContract, tokenId, msg.sender);
+        emit ItemCreated(itemId, nftContractAddress, tokenId, msg.sender);
 
         return itemId;
     }

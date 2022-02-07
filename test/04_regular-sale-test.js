@@ -67,7 +67,7 @@ describe("************ Regular sale ******************", () => {
         console.log("\tcreating market item...");
         const tx1 = await market
             .connect(seller)
-            .mint(1, "https://fake-uri-1.com", artistAddress, royaltyValue, true);
+            .mint(1, "https://fake-uri-1.com", artistAddress, royaltyValue);
         const receipt1 = await tx1.wait();
         item1Id = receipt1.events[2].args[0].toNumber();
         token1Id = receipt1.events[2].args[2].toNumber();
@@ -105,7 +105,7 @@ describe("************ Regular sale ******************", () => {
         console.log("\tcreating market item...");
         const tx1 = await market
             .connect(seller)
-            .mint(10, "https://fake-uri-1.com", artistAddress, royaltyValue, true);
+            .mint(10, "https://fake-uri-1.com", artistAddress, royaltyValue);
         const receipt1 = await tx1.wait();
         item2Id = receipt1.events[2].args[0].toNumber();
         token2Id = receipt1.events[2].args[2].toNumber();

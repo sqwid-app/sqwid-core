@@ -10,7 +10,6 @@ describe("************ NFT ******************", () => {
         token2Id,
         token3Id,
         royaltyValue,
-        newTokenURI,
         salePrice,
         creatorAddress,
         artistAddress;
@@ -28,7 +27,6 @@ describe("************ NFT ******************", () => {
         recipientAddress = await recipient.getAddress();
 
         // Initialize global variables
-        newTokenURI = "https://fake-uri-xyz.com";
         salePrice = ethers.utils.parseUnits("50", "ether");
         royaltyValue = 1000; // 10%
 
@@ -50,7 +48,7 @@ describe("************ NFT ******************", () => {
 
         const tx1 = await nft
             .connect(creator)
-            .mint(creatorAddress, 1, "https://fake-uri-1.com", artistAddress, royaltyValue, true);
+            .mint(creatorAddress, 1, "https://fake-uri-1.com", artistAddress, royaltyValue);
         const receipt1 = await tx1.wait();
         token1Id = receipt1.events[0].args[3].toNumber();
 
@@ -61,8 +59,7 @@ describe("************ NFT ******************", () => {
                 [99, 10],
                 ["https://fake-uri-2.com", "https://fake-uri-3.com"],
                 [artistAddress, artistAddress],
-                [royaltyValue, royaltyValue],
-                [false, false]
+                [royaltyValue, royaltyValue]
             );
         const receipt2 = await tx2.wait();
         token2Id = receipt2.events[0].args[3][0].toNumber();
@@ -137,29 +134,6 @@ describe("************ NFT ******************", () => {
         expect(token2Owners.length).to.equal(2);
         assert(token2Owners.includes(creatorAddress));
         assert(token2Owners.includes(recipientAddress));
-    });
-
-    it("Should not change tokenURI if caller is not owner of total token supply", async () => {
-        // Creates new token
-        const tx = await nft
-            .connect(creator)
-            .mint(creatorAddress, 10, "https://fake-uri.com", artistAddress, royaltyValue, true);
-        const receipt = await tx.wait();
-        const tokenId = receipt.events[0].args[3].toNumber();
-
-        // Transfer token
-        console.log("\ttransfering token...");
-        await nft
-            .connect(creator)
-            .safeTransferFrom(creatorAddress, recipientAddress, tokenId, 1, []);
-        console.log("\tToken transfered");
-
-        // Change tokenURI
-        console.log("\tcreator changing tokenURI...");
-        await throwsException(
-            nft.connect(creator).setTokenUri(token1Id, newTokenURI),
-            "ERC1155: Only owner can set URI"
-        );
     });
 
     it("Should not burn token if is not owner", async () => {
