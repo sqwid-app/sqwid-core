@@ -12,18 +12,9 @@ import "../@openzeppelin/contracts/utils/Context.sol";
 import "../@openzeppelin/contracts/utils/Counters.sol";
 import "../@openzeppelin/contracts/access/Ownable.sol";
 import "./base/NftRoyalties.sol";
-import "./base/NftMutableUri.sol";
 import "./base/SqwidERC1155Wrapper.sol";
 
-contract SqwidERC1155 is
-    Context,
-    ERC165,
-    IERC1155,
-    NftRoyalties,
-    NftMutableUri,
-    Ownable,
-    SqwidERC1155Wrapper
-{
+contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable, SqwidERC1155Wrapper {
     using Counters for Counters.Counter;
     using Address for address;
 
@@ -43,8 +34,7 @@ contract SqwidERC1155 is
         uint256 amount,
         string memory tokenURI,
         address royaltyRecipient,
-        uint256 royaltyValue,
-        bool mutableUri
+        uint256 royaltyValue
     ) public returns (uint256) {
         require(to != address(0), "ERC1155: mint to the zero address");
         require(amount > 0, "ERC1155: amount has to be larger than 0");
@@ -64,7 +54,6 @@ contract SqwidERC1155 is
         if (royaltyValue > 0) {
             _setTokenRoyalty(tokenId, royaltyRecipient, royaltyValue);
         }
-        _setMutableURI(tokenId, mutableUri);
 
         return tokenId;
     }
@@ -77,15 +66,13 @@ contract SqwidERC1155 is
         uint256[] memory amounts,
         string[] memory tokenURIs,
         address[] memory royaltyRecipients,
-        uint256[] memory royaltyValues,
-        bool[] memory mutableUris
+        uint256[] memory royaltyValues
     ) public returns (uint256[] memory) {
         require(to != address(0), "ERC1155: mint to the 0 address");
         require(
             amounts.length == royaltyRecipients.length &&
                 amounts.length == tokenURIs.length &&
-                amounts.length == royaltyValues.length &&
-                amounts.length == mutableUris.length,
+                amounts.length == royaltyValues.length,
             "ERC1155: Arrays length mismatch"
         );
 
@@ -110,7 +97,6 @@ contract SqwidERC1155 is
             if (royaltyValues[i] > 0) {
                 _setTokenRoyalty(ids[i], royaltyRecipients[i], royaltyValues[i]);
             }
-            _setMutableURI(ids[i], mutableUris[i]);
             _uris[ids[i]] = tokenURIs[i];
         }
 
@@ -149,20 +135,6 @@ contract SqwidERC1155 is
      */
     function uri(uint256 tokenId) public view returns (string memory) {
         return _uris[tokenId];
-    }
-
-    /**
-     * Sets URI for a specific token.
-     * Only allowed if sender is owner of total supply and NFT is mutable.
-     */
-    function setTokenUri(uint256 tokenId, string memory uriValue) public {
-        require(
-            balanceOf(msg.sender, tokenId) == getTokenSupply(tokenId),
-            "ERC1155: Only owner can set URI"
-        );
-        require(hasMutableURI(tokenId), "ERC1155: Token metadata is immutable");
-
-        _uris[tokenId] = uriValue;
     }
 
     /**
@@ -320,7 +292,7 @@ contract SqwidERC1155 is
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC165, IERC165, ERC1155Receiver, NftRoyalties, NftMutableUri)
+        override(ERC165, IERC165, ERC1155Receiver, NftRoyalties)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
@@ -364,7 +336,7 @@ contract SqwidERC1155 is
                 );
             }
             string memory uri_ = IERC721Metadata(extNftContract).tokenURI(extTokenId);
-            tokenId = mint(msg.sender, 1, uri_, royaltyRecipient, royaltyValue, false);
+            tokenId = mint(msg.sender, 1, uri_, royaltyRecipient, royaltyValue);
 
             _wrappedTokens[tokenId] = WrappedToken(tokenId, true, extTokenId, extNftContract);
             _wrappedCounter.increment();
@@ -446,7 +418,7 @@ contract SqwidERC1155 is
             }
             string memory uri_ = IERC1155MetadataURI(extNftContract).uri(extTokenId);
 
-            tokenId = mint(msg.sender, amount, uri_, royaltyRecipient, royaltyValue, false);
+            tokenId = mint(msg.sender, amount, uri_, royaltyRecipient, royaltyValue);
             _wrappedTokens[tokenId] = WrappedToken(tokenId, false, extTokenId, extNftContract);
             _wrappedCounter.increment();
         }

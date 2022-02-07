@@ -141,17 +141,15 @@ describe("************ Loans ******************", () => {
         expect(endLoans.length).to.equal(iniLoans.length - 1);
     });
 
-    it.only("Should fund loan", async () => {
+    it("Should fund loan", async () => {
         // Create new loan proposal
         console.log("\tborrower creating loan proposal...");
-        await getBalance(balanceHelper, borrowerAddress, "borrower");
         const tx = await market
             .connect(borrower)
             .createItemLoan(item1Id, loanAmount, feeAmount, token1Amount, loanDuration);
         const receipt = await tx.wait();
         loan2Id = receipt.events[1].args[0];
         console.log(`\tloan proposal created with id ${loan2Id}`);
-        await getBalance(balanceHelper, borrowerAddress, "borrower");
 
         // Initial data
         const iniLenderBalance = await getBalance(balanceHelper, lenderAddress, "lender");

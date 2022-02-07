@@ -99,7 +99,6 @@ describe("************ Wrapper ******************", () => {
         assert(wrappedToken.isErc721);
         expect(Number(wrappedToken.extTokenId)).to.equal(token1Id);
         expect(wrappedToken.extNftContract).to.equal(dummyERC721Address);
-        expect(!(await sqwidNft.hasMutableURI(wrappedToken1Id)));
         expect(await sqwidNft.uri(wrappedToken1Id)).to.equal(await dummyERC721.tokenURI(token1Id));
         expect(Number(await sqwidNft.getTokenSupply(wrappedToken1Id))).to.equal(1);
         expect(Number(await sqwidNft.balanceOf(user1Address, wrappedToken1Id)), 1);
@@ -155,7 +154,6 @@ describe("************ Wrapper ******************", () => {
         assert(!wrappedToken.isErc721);
         expect(Number(wrappedToken.extTokenId)).to.equal(token2Id);
         expect(wrappedToken.extNftContract).to.equal(dummyERC1155Address);
-        expect(!(await sqwidNft.hasMutableURI(wrappedToken2Id)));
         expect(await sqwidNft.uri(wrappedToken2Id)).to.equal(await dummyERC1155.uri(token2Id));
         expect(Number(await sqwidNft.getTokenSupply(wrappedToken2Id))).to.equal(10);
         expect(Number(await sqwidNft.balanceOf(user2Address, wrappedToken2Id)), 10);
@@ -213,7 +211,6 @@ describe("************ Wrapper ******************", () => {
         assert(!wrappedToken.isErc721);
         expect(Number(wrappedToken.extTokenId)).to.equal(token2Id);
         expect(wrappedToken.extNftContract).to.equal(dummyERC1155Address);
-        expect(!(await sqwidNft.hasMutableURI(wrappedToken2Id)));
         expect(await sqwidNft.uri(wrappedToken2Id)).to.equal(await dummyERC1155.uri(token2Id));
         expect(Number(await sqwidNft.getTokenSupply(wrappedToken2Id))).to.equal(20 + 5 + 10);
         expect(Number(await sqwidNft.balanceOf(user2Address, wrappedToken2Id)), 20 + 10);

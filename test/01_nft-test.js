@@ -88,9 +88,6 @@ describe("************ NFT ******************", () => {
         expect(Number(await nft.balanceOf(creatorAddress, token1Id))).to.equal(1);
         expect(Number(await nft.balanceOf(creatorAddress, token2Id))).to.equal(99);
         expect(Number(await nft.balanceOf(creatorAddress, token3Id))).to.equal(10);
-        assert(await nft.hasMutableURI(token1Id));
-        expect(!(await nft.hasMutableURI(token2Id)));
-        expect(await nft.hasMutableURI(token3Id));
         expect(await nft.uri(token1Id)).to.equal("https://fake-uri-1.com");
         expect(await nft.uri(token2Id)).to.equal("https://fake-uri-2.com");
         expect(await nft.uri(token3Id)).to.equal("https://fake-uri-3.com");
@@ -163,44 +160,6 @@ describe("************ NFT ******************", () => {
             nft.connect(creator).setTokenUri(token1Id, newTokenURI),
             "ERC1155: Only owner can set URI"
         );
-    });
-
-    it("Should not change tokenURI if token is not mutable", async () => {
-        // Creates new token
-        const tx = await nft
-            .connect(creator)
-            .mint(creatorAddress, 10, "https://fake-uri.com", artistAddress, royaltyValue, false);
-        const receipt = await tx.wait();
-        const tokenId = receipt.events[0].args[3].toNumber();
-
-        // Change tokenURI
-        console.log("\tcreator changing tokenURI...");
-        await throwsException(
-            nft.connect(creator).setTokenUri(tokenId, newTokenURI),
-            "ERC1155: Token metadata is immutable"
-        );
-    });
-
-    it("Should change tokenURI", async () => {
-        // Creates new token
-        const tx = await nft
-            .connect(creator)
-            .mint(creatorAddress, 10, "https://fake-uri.com", artistAddress, royaltyValue, true);
-        const receipt = await tx.wait();
-        const tokenId = receipt.events[0].args[3].toNumber();
-
-        // Change tokenURI
-        console.log("\tcreator changing tokenURI...");
-
-        // Change tokenURI
-        console.log("\tcreator changing tokenURI...");
-        await nft.connect(creator).setTokenUri(tokenId, newTokenURI);
-        console.log("\ttokenURI changed.");
-
-        // Final data
-        const endTokenURI = await nft.uri(tokenId);
-
-        expect(endTokenURI).to.equal(newTokenURI);
     });
 
     it("Should not burn token if is not owner", async () => {
