@@ -2,13 +2,12 @@ const { expect } = require("chai");
 const {
     getMainContracts,
     getBalanceHelper,
-    formatBigNumber,
     getBalance,
     throwsException,
     delay,
 } = require("./util");
 
-describe("************ Auctions ******************", () => {
+describe.only("************ Auctions ******************", () => {
     let market,
         nft,
         balanceHelper,
@@ -35,7 +34,8 @@ describe("************ Auctions ******************", () => {
         bid1Amount,
         bid2Amount,
         bid3Amount,
-        bid4Amount;
+        bid4Amount,
+        bid5Amount;
 
     before(async () => {
         // Get accounts
@@ -58,10 +58,11 @@ describe("************ Auctions ******************", () => {
         numMinutes = 11;
         minBid = ethers.utils.parseUnits("50", "ether");
         tokensAmount = 8;
-        bid1Amount = ethers.utils.parseUnits("49", "ether");
-        bid2Amount = ethers.utils.parseUnits("60", "ether");
-        bid3Amount = ethers.utils.parseUnits("1", "ether");
-        bid4Amount = ethers.utils.parseUnits("62", "ether");
+        bid1Amount = ethers.utils.parseUnits("49", "ether"); // bid user 1
+        bid2Amount = ethers.utils.parseUnits("60", "ether"); // bid user 1
+        bid3Amount = ethers.utils.parseUnits("62", "ether"); // bid user 2
+        bid4Amount = ethers.utils.parseUnits("1", "ether"); // bid user 2
+        bid5Amount = ethers.utils.parseUnits("4", "ether"); // bid user 1
         royaltyValue = 1000; // 10%
 
         // Deploy or get existing contracts
@@ -114,7 +115,7 @@ describe("************ Auctions ******************", () => {
         expect(deadline)
             .to.lt(new Date(new Date().getTime() + 1000 * 60 * (numMinutes + 1)))
             .gt(new Date());
-        expect(formatBigNumber(auction.auctionData.minBid)).equals(formatBigNumber(minBid));
+        expect(Number(auction.auctionData.minBid)).equals(Number(minBid));
         expect(Number(auction.marketFee)).to.equal(Number(marketFee));
     });
 
@@ -145,14 +146,12 @@ describe("************ Auctions ******************", () => {
 
         // Evaluate results
         expect(deadline.getTime()).equals(oldDeadline.getTime());
-        expect(formatBigNumber(auctionData.highestBid)).equals(formatBigNumber(bid2Amount));
+        expect(Number(auctionData.highestBid)).equals(Number(bid2Amount));
         expect(auctionData.highestBidder).equals(buyer1Address);
-        expect(endBuyer1Balance)
-            .to.lte(iniBuyer1Balance - formatBigNumber(bid2Amount))
-            .gt(iniBuyer1Balance - formatBigNumber(bid2Amount) - formatBigNumber(maxGasFee));
-        expect(endMarketBalance)
-            .to.gte(iniMarketBalance + formatBigNumber(bid2Amount))
-            .lt(iniMarketBalance + formatBigNumber(bid2Amount) + 1);
+        expect(Number(endBuyer1Balance))
+            .to.lte(Number(iniBuyer1Balance.sub(bid2Amount)))
+            .gt(Number(iniBuyer1Balance.sub(bid2Amount).sub(maxGasFee)));
+        expect(Number(endMarketBalance)).to.equal(Number(iniMarketBalance.add(bid2Amount)));
     });
 
     it("Should not allow bids equal or lower than highest bid", async () => {
@@ -163,10 +162,37 @@ describe("************ Auctions ******************", () => {
         );
     });
 
-    it("Should increase bid", async () => {
+    it("Should outbid", async () => {
+        // Initial data
+        const iniBuyer2Balance = await getBalance(balanceHelper, buyer2Address, "buyer2");
+        const iniMarketBalance = await getBalance(balanceHelper, market.address, "market");
+
         // Creates bid
-        console.log("\tbuyer1 creating bid...");
-        await market.connect(buyer1).createBid(auctionId, { value: bid3Amount });
+        console.log("\tbuyer2 creating bid...");
+        await market.connect(buyer2).createBid(auctionId, { value: bid3Amount });
+        console.log("\tbid created");
+
+        // Final data
+        const endBuyer2Balance = await getBalance(balanceHelper, buyer2Address, "buyer2");
+        const endMarketBalance = await getBalance(balanceHelper, market.address, "market");
+        const oldDeadline = deadline;
+        const auctionData = (await market.fetchPosition(auctionId)).auctionData;
+        deadline = new Date(auctionData.deadline * 1000);
+
+        // Evaluate results
+        expect(deadline.getTime()).equals(oldDeadline.getTime());
+        expect(Number(auctionData.highestBid)).equals(Number(bid3Amount));
+        expect(auctionData.highestBidder).equals(buyer2Address);
+        expect(Number(endBuyer2Balance))
+            .to.lte(Number(iniBuyer2Balance.sub(bid3Amount)))
+            .gt(Number(iniBuyer2Balance.sub(bid3Amount).sub(maxGasFee)));
+        expect(Number(endMarketBalance)).to.equal(Number(iniMarketBalance.add(bid3Amount)));
+    });
+
+    it("Should increase bid for highest bidder", async () => {
+        // Creates bid
+        console.log("\tbuyer2 creating bid...");
+        await market.connect(buyer2).createBid(auctionId, { value: bid4Amount });
         console.log("\tbid created");
 
         // Final data
@@ -176,16 +202,13 @@ describe("************ Auctions ******************", () => {
 
         // Evaluate results
         expect(deadline.getTime()).equals(oldDeadline.getTime());
-        expect(formatBigNumber(auctionData.highestBid)).equals(
-            formatBigNumber(bid2Amount.add(bid3Amount))
-        );
-        expect(auctionData.highestBidder).equals(buyer1Address);
+        expect(Number(auctionData.highestBid)).equals(Number(bid3Amount.add(bid4Amount)));
+        expect(auctionData.highestBidder).equals(buyer2Address);
     });
 
-    it("Should extend auction deadline", async () => {
+    it("Should increase for non-highest bidder and extend auction deadline", async () => {
         // Initial data
         const iniBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
-        const iniBuyer2Balance = await getBalance(balanceHelper, buyer2Address, "buyer2");
         const iniMarketBalance = await getBalance(balanceHelper, market.address, "market");
 
         // Wait until 10 minutes before deadline
@@ -199,34 +222,26 @@ describe("************ Auctions ******************", () => {
         }
 
         // Creates bid
-        console.log("\tbuyer2 creating bid...");
-        await market.connect(buyer2).createBid(auctionId, { value: bid4Amount });
+        console.log("\tbuyer1 creating bid...");
+        await market.connect(buyer1).createBid(auctionId, { value: bid5Amount });
         console.log("\tbid created");
 
         // Final data
         const endBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
-        const endBuyer2Balance = await getBalance(balanceHelper, buyer2Address, "buyer2");
         const endMarketBalance = await getBalance(balanceHelper, market.address, "market");
         const oldDeadline = deadline;
         const auctionData = (await market.fetchPosition(auctionId)).auctionData;
         deadline = new Date(auctionData.deadline * 1000);
         console.log(`\tdeadline extended by ${(deadline - oldDeadline) / 1000} secs.`);
-        const bidIncrease =
-            formatBigNumber(bid4Amount) - formatBigNumber(bid2Amount) - formatBigNumber(bid3Amount);
 
         // Evaluate results
         expect(deadline.getTime()).gt(oldDeadline.getTime());
-        expect(formatBigNumber(auctionData.highestBid)).equals(formatBigNumber(bid4Amount));
-        expect(auctionData.highestBidder).equals(buyer2Address);
-        expect(endBuyer1Balance).to.equals(
-            iniBuyer1Balance + formatBigNumber(bid2Amount) + formatBigNumber(bid3Amount)
-        );
-        expect(endBuyer2Balance)
-            .to.lte(iniBuyer2Balance - formatBigNumber(bid4Amount))
-            .gt(iniBuyer2Balance - formatBigNumber(bid4Amount) - formatBigNumber(maxGasFee));
-        expect(endMarketBalance)
-            .to.gte(iniMarketBalance + bidIncrease)
-            .lt(iniMarketBalance + bidIncrease + 1);
+        expect(Number(auctionData.highestBid)).equals(Number(bid2Amount.add(bid5Amount)));
+        expect(auctionData.highestBidder).equals(buyer1Address);
+        expect(Number(endBuyer1Balance))
+            .to.lte(Number(iniBuyer1Balance.sub(bid5Amount)))
+            .gt(Number(iniBuyer1Balance.sub(bid5Amount).sub(maxGasFee)));
+        expect(Number(endMarketBalance)).to.equal(Number(iniMarketBalance.add(bid5Amount)));
     });
 
     it.skip("Should end auction with bids", async () => {
@@ -234,8 +249,8 @@ describe("************ Auctions ******************", () => {
         const iniSellerBalance = await getBalance(balanceHelper, sellerAddress, "seller");
         const iniArtistBalance = await getBalance(balanceHelper, artistAddress, "artist");
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
+        const iniBuyer2MarketBalance = await market.addressBalance(buyer2Address);
         const iniMarketBalance = await getBalance(balanceHelper, market.address, "market");
-        await getBalance(balanceHelper, buyer1Address, "buyer1");
         const auctions = await market.fetchPositionsByState(2);
         const iniNumAuctions = auctions.length;
         const auction = auctions.at(-1);
@@ -246,7 +261,7 @@ describe("************ Auctions ******************", () => {
             tokenId = auction.item.tokenId;
             deadline = new Date(auction.auctionData.deadline * 1000);
         }
-        const iniBuyer2TokenAmount = await nft.balanceOf(buyer2Address, tokenId);
+        const iniBuyer1TokenAmount = await nft.balanceOf(buyer1Address, tokenId);
 
         // Wait until deadline
         const timeUntilDeadline = deadline - new Date();
@@ -259,7 +274,7 @@ describe("************ Auctions ******************", () => {
 
         // End auction
         console.log("\tending auction...");
-        await market.connect(buyer1).endAuction(auctionId);
+        await market.connect(buyer2).endAuction(auctionId);
         console.log("\tauction ended.");
 
         // Final data
@@ -267,59 +282,92 @@ describe("************ Auctions ******************", () => {
         const endSellerBalance = await getBalance(balanceHelper, sellerAddress, "seller");
         const endArtistBalance = await getBalance(balanceHelper, artistAddress, "artist");
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
+        const endBuyer2MarketBalance = await market.addressBalance(buyer2Address);
         const endMarketBalance = await getBalance(balanceHelper, market.address, "market");
-        const royaltiesAmount = (bid4Amount * royaltyValue) / 10000;
-        const marketFeeAmount = ((bid4Amount - royaltiesAmount) * marketFee) / 10000;
-        await getBalance(balanceHelper, buyer1Address, "buyer1");
-        const endBuyer2TokenAmount = await nft.balanceOf(buyer2Address, tokenId);
+        const royaltiesAmountRaw = (bid2Amount.add(bid5Amount) * royaltyValue) / 10000;
+        const royaltiesAmount = ethers.utils.parseUnits(royaltiesAmountRaw.toString(), "wei");
+        const marketFeeAmountRaw =
+            (bid2Amount.add(bid5Amount).sub(royaltiesAmount) * marketFee) / 10000;
+        const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
+        const endBuyer1TokenAmount = await nft.balanceOf(buyer1Address, tokenId);
         const endNumAuctions = (await market.fetchPositionsByState(2)).length;
 
         // Evaluate results
         expect(endItem.sales[0].seller).to.equal(sellerAddress);
-        expect(endItem.sales[0].buyer).to.equal(buyer2Address);
-        expect(formatBigNumber(endItem.sales[0].price)).to.equal(formatBigNumber(bid4Amount));
-        expect(endBuyer2TokenAmount - iniBuyer2TokenAmount).to.equal(tokensAmount);
+        expect(endItem.sales[0].buyer).to.equal(buyer1Address);
+        expect(Number(endItem.sales[0].price)).to.equal(Number(bid2Amount.add(bid5Amount)));
+        expect(endBuyer1TokenAmount - iniBuyer1TokenAmount).to.equal(tokensAmount);
         expect(iniNumAuctions - endNumAuctions).to.equal(1);
-        expect(endArtistBalance).to.equal(iniArtistBalance + formatBigNumber(royaltiesAmount));
-        expect(formatBigNumber(endOwnerMarketBalance)).to.equal(
-            formatBigNumber(iniOwnerMarketBalance) + formatBigNumber(marketFeeAmount)
+        expect(Number(endArtistBalance)).to.equal(Number(iniArtistBalance.add(royaltiesAmount)));
+        expect(Number(endOwnerMarketBalance)).to.equal(
+            Number(iniOwnerMarketBalance.add(marketFeeAmount))
         );
-        expect(endSellerBalance).to.equal(
-            iniSellerBalance +
-                formatBigNumber(bid4Amount) -
-                formatBigNumber(royaltiesAmount) -
-                formatBigNumber(marketFeeAmount)
+        expect(Number(endSellerBalance)).to.equal(
+            Number(
+                iniSellerBalance
+                    .add(bid2Amount)
+                    .add(bid5Amount)
+                    .sub(royaltiesAmount)
+                    .sub(marketFeeAmount)
+            )
         );
-        expect(endMarketBalance).to.equal(
-            iniMarketBalance -
-                formatBigNumber(bid4Amount) +
-                formatBigNumber(endOwnerMarketBalance) -
-                formatBigNumber(iniOwnerMarketBalance)
+        expect(Number(endMarketBalance)).to.equal(
+            Number(
+                iniMarketBalance
+                    .sub(bid2Amount)
+                    .sub(bid5Amount)
+                    .add(endOwnerMarketBalance)
+                    .sub(iniOwnerMarketBalance)
+            )
         );
+        expect(Number(endBuyer2MarketBalance.sub(iniBuyer2MarketBalance))).to.equal(
+            Number(bid3Amount.add(bid4Amount))
+        );
+    });
+
+    it.skip("Should withdraw bidded amount", async () => {
+        const iniBuyer2Balance = await getBalance(balanceHelper, buyer2Address, "buyer2");
+        const iniBuyer2MarketBalance = await market.addressBalance(buyer2Address);
+        const iniMarketBalance = await getBalance(balanceHelper, market.address, "market");
+
+        console.log("\tuser 2 withdrawing balance...");
+        await market.connect(buyer2).withdraw();
+        console.log("\tWithdrawing completed.");
+        const endBuyer2Balance = await getBalance(balanceHelper, buyer2Address, "buyer2");
+        const endBuyer2MarketBalance = await market.addressBalance(buyer2Address);
+        const endMarketBalance = await getBalance(balanceHelper, market.address, "market");
+
+        expect(Number(iniBuyer2MarketBalance)).to.equal(
+            Number(iniMarketBalance.sub(endMarketBalance))
+        );
+        expect(Number(iniBuyer2MarketBalance))
+            .to.gte(Number(endBuyer2Balance.sub(iniBuyer2Balance)))
+            .to.lt(Number(endBuyer2Balance.sub(iniBuyer2Balance).add(maxGasFee)));
+        expect(Number(endBuyer2MarketBalance)).to.equal(0);
     });
 
     it.skip("Should end auction without bids", async () => {
         // Initial data
-        const iniBuyer2Balance = await getBalance(balanceHelper, buyer2Address, "buyer1");
-        const iniBuyer2TokenAmount = Number(await nft.balanceOf(buyer2Address, tokenId));
+        const iniBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
+        const iniBuyer1TokenAmount = Number(await nft.balanceOf(buyer1Address, tokenId));
         const iniNumAuctions = (await market.fetchPositionsByState(2)).length;
 
         // Approve market contract for this address
         console.log("\tcreating approval for market contract...");
-        await nft.connect(buyer2).setApprovalForAll(market.address, true);
+        await nft.connect(buyer1).setApprovalForAll(market.address, true);
         console.log("\tapproval created");
 
         // Create auction
-        const tx = await market.connect(buyer2).createItemAuction(itemId, tokensAmount, 1, minBid);
+        const tx = await market.connect(buyer1).createItemAuction(itemId, tokensAmount, 1, minBid);
         const receipt = await tx.wait();
         auctionId = receipt.events[1].args[0];
         console.log("\tauction created.");
-        await getBalance(balanceHelper, buyer2Address, "buyer2");
+        await getBalance(balanceHelper, buyer1Address, "buyer1");
 
         // Try to end auction
         console.log("\tending auction...");
         await throwsException(
-            market.connect(buyer2).endAuction(auctionId),
+            market.connect(buyer1).endAuction(auctionId),
             "SqwidMarket: Deadline not reached"
         );
 
@@ -336,19 +384,19 @@ describe("************ Auctions ******************", () => {
 
         // End auction
         console.log("\tending auction...");
-        await market.connect(buyer2).endAuction(auctionId);
+        await market.connect(buyer1).endAuction(auctionId);
         console.log("\tauction ended.");
 
         // Final data
-        const endBuyer2Balance = await getBalance(balanceHelper, buyer2Address, "buyer2");
-        const endBuyer2TokenAmount = Number(await nft.balanceOf(buyer2Address, tokenId));
+        const endBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
+        const endBuyer1TokenAmount = Number(await nft.balanceOf(buyer1Address, tokenId));
         const endNumAuctions = (await market.fetchPositionsByState(2)).length;
 
         // Evaluate results
-        expect(endBuyer2Balance)
-            .to.lte(iniBuyer2Balance)
-            .to.gt(iniBuyer2Balance - formatBigNumber(maxGasFee));
-        expect(endBuyer2TokenAmount).to.equal(iniBuyer2TokenAmount);
+        expect(Number(endBuyer1Balance))
+            .to.lte(Number(iniBuyer1Balance))
+            .to.gt(Number(iniBuyer1Balance.sub(maxGasFee)));
+        expect(endBuyer1TokenAmount).to.equal(iniBuyer1TokenAmount);
         expect(endNumAuctions).to.equal(iniNumAuctions);
     });
 });

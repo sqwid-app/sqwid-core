@@ -1,11 +1,5 @@
 const { expect } = require("chai");
-const {
-    getMainContracts,
-    getBalanceHelper,
-    formatBigNumber,
-    getBalance,
-    throwsException,
-} = require("./util");
+const { getMainContracts, getBalanceHelper, getBalance, throwsException } = require("./util");
 
 describe("************ Regular sale ******************", () => {
     let market,
@@ -90,7 +84,7 @@ describe("************ Regular sale ******************", () => {
         expect(Number(position.item.itemId)).to.equal(item1Id);
         expect(position.owner).to.equal(sellerAddress);
         expect(Number(position.amount)).to.equal(1);
-        expect(formatBigNumber(position.price)).to.equal(formatBigNumber(salePrice));
+        expect(Number(position.price)).to.equal(Number(salePrice));
         expect(Number(position.marketFee)).to.equal(Number(marketFee));
         expect(Number(position.state)).to.equal(1); // PositionState.RegularSale = 1
         expect(Number(item.positions.at(-1).positionId)).to.equal(position1Id);
@@ -132,7 +126,7 @@ describe("************ Regular sale ******************", () => {
         expect(Number(endItems.at(-1).itemId)).to.equal(item2Id);
         expect(position.owner).to.equal(sellerAddress);
         expect(Number(position.amount)).to.equal(10);
-        expect(formatBigNumber(position.price)).to.equal(formatBigNumber(salePrice));
+        expect(Number(position.price)).to.equal(Number(salePrice));
         expect(Number(position.marketFee)).to.equal(Number(marketFee));
         expect(Number(position.state)).to.equal(1); // RegularSale = 1
         expect(Number(item.positions.at(-1).positionId)).to.equal(position2Id);
@@ -160,33 +154,32 @@ describe("************ Regular sale ******************", () => {
         const endArtistBalance = await getBalance(balanceHelper, artistAddress, "artist");
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const endBuyer1TokenAmount = await nft.balanceOf(buyer1Address, token1Id);
-        const royaltiesAmount = (salePrice * royaltyValue) / 10000;
-        const marketFeeAmount = ((salePrice - royaltiesAmount) * marketFee) / 10000;
+        const royaltiesAmountRaw = (salePrice * royaltyValue) / 10000;
+        const royaltiesAmount = ethers.utils.parseUnits(royaltiesAmountRaw.toString(), "wei");
+        const marketFeeAmountRaw = ((salePrice - royaltiesAmount) * marketFee) / 10000;
+        const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
         const item = await market.fetchItem(item1Id);
         const endAvailablePositions = await market.fetchPositionsByState(0);
 
         // Evaluate results
         expect(endBuyer1TokenAmount - iniBuyer1TokenAmount).to.equal(1);
-        expect(endBuyer1Balance)
-            .to.lte(iniBuyer1Balance - formatBigNumber(salePrice))
-            .gt(iniBuyer1Balance - formatBigNumber(salePrice) - formatBigNumber(maxGasFee));
-        expect(endArtistBalance).to.equal(iniArtistBalance + formatBigNumber(royaltiesAmount));
+        expect(Number(endBuyer1Balance))
+            .to.lte(Number(iniBuyer1Balance.sub(salePrice)))
+            .gt(Number(iniBuyer1Balance.sub(salePrice).sub(maxGasFee)));
+        expect(Number(endArtistBalance)).to.equal(Number(iniArtistBalance.add(royaltiesAmount)));
 
-        expect(formatBigNumber(endOwnerMarketBalance)).to.equal(
-            formatBigNumber(iniOwnerMarketBalance) + formatBigNumber(marketFeeAmount)
+        expect(Number(endOwnerMarketBalance)).to.equal(
+            Number(iniOwnerMarketBalance.add(marketFeeAmount))
         );
-        expect(endSellerBalance).to.equal(
-            iniSellerBalance +
-                formatBigNumber(salePrice) -
-                formatBigNumber(royaltiesAmount) -
-                formatBigNumber(marketFeeAmount)
+        expect(Number(endSellerBalance)).to.equal(
+            Number(iniSellerBalance.add(salePrice).sub(royaltiesAmount).sub(marketFeeAmount))
         );
 
         expect(item.nftContract).to.equal(nft.address);
         expect(Number(item.tokenId)).to.equal(token1Id);
         expect(item.sales[0].seller).to.equal(sellerAddress);
         expect(item.sales[0].buyer).to.equal(buyer1Address);
-        expect(formatBigNumber(item.sales[0].price)).to.equal(formatBigNumber(salePrice));
+        expect(Number(item.sales[0].price)).to.equal(Number(salePrice));
         expect(endAvailablePositions.length - iniAvailablePositions.length).to.equal(1);
     });
 
@@ -202,13 +195,13 @@ describe("************ Regular sale ******************", () => {
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const endMarketBalance = await getBalance(balanceHelper, market.address, "market");
 
-        expect(formatBigNumber(iniOwnerMarketBalance)).to.equal(
-            iniMarketBalance - endMarketBalance
+        expect(Number(iniOwnerMarketBalance)).to.equal(
+            Number(iniMarketBalance.sub(endMarketBalance))
         );
-        expect(formatBigNumber(iniOwnerMarketBalance))
-            .to.gte(endOwnerBalance - iniOwnerBalance)
-            .to.lt(endOwnerBalance - iniOwnerBalance + marketFee);
-        expect(formatBigNumber(endOwnerMarketBalance)).to.equal(0);
+        expect(Number(iniOwnerMarketBalance))
+            .to.gte(Number(endOwnerBalance.sub(iniOwnerBalance)))
+            .to.lt(Number(endOwnerBalance.sub(iniOwnerBalance).add(maxGasFee)));
+        expect(Number(endOwnerMarketBalance)).to.equal(0);
     });
 
     it("Should allow to end sale only to seller", async () => {

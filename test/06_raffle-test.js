@@ -2,7 +2,6 @@ const { expect } = require("chai");
 const {
     getMainContracts,
     getBalanceHelper,
-    formatBigNumber,
     getBalance,
     throwsException,
     delay,
@@ -140,32 +139,18 @@ describe("************ Raffles ******************", () => {
         const raffle = await market.fetchPosition(raffleId);
 
         // Evaluate results
-        expect(endBuyer1Balance)
-            .to.lte(iniBuyer1Balance - formatBigNumber(buyer1RaffleAmount))
-            .gt(
-                iniBuyer1Balance - formatBigNumber(buyer1RaffleAmount) - formatBigNumber(maxGasFee)
-            );
-        expect(endBuyer2Balance)
-            .to.lte(iniBuyer2Balance - formatBigNumber(buyer2RaffleAmount))
-            .gt(
-                iniBuyer2Balance - formatBigNumber(buyer2RaffleAmount) - formatBigNumber(maxGasFee)
-            );
-        expect(endMarketBalance)
-            .to.gte(
-                iniMarketBalance +
-                    formatBigNumber(buyer1RaffleAmount) +
-                    formatBigNumber(buyer2RaffleAmount)
-            )
-            .lt(
-                iniMarketBalance +
-                    formatBigNumber(buyer1RaffleAmount) +
-                    formatBigNumber(buyer2RaffleAmount) +
-                    1
-            );
+        expect(Number(endBuyer1Balance))
+            .to.lte(Number(iniBuyer1Balance.sub(buyer1RaffleAmount)))
+            .gt(Number(iniBuyer1Balance.sub(buyer1RaffleAmount).sub(maxGasFee)));
+        expect(Number(endBuyer2Balance))
+            .to.lte(Number(iniBuyer2Balance.sub(buyer2RaffleAmount)))
+            .gt(Number(iniBuyer2Balance.sub(buyer2RaffleAmount).sub(maxGasFee)));
+        expect(Number(endMarketBalance)).to.equal(
+            Number(iniMarketBalance.add(buyer1RaffleAmount).add(buyer2RaffleAmount))
+        );
         expect(Number(raffle.raffleData.totalAddresses)).to.equal(2);
-
-        expect(Number(raffle.raffleData.totalValue)).to.equal(
-            formatBigNumber(buyer1RaffleAmount) + formatBigNumber(buyer2RaffleAmount)
+        expect(Number(raffle.raffleData.totalValue) * 1e18).to.equal(
+            Number(buyer1RaffleAmount.add(buyer2RaffleAmount))
         );
     });
 
@@ -210,10 +195,13 @@ describe("************ Raffles ******************", () => {
         const endArtistBalance = await getBalance(balanceHelper, artistAddress, "artist");
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const endMarketBalance = await getBalance(balanceHelper, market.address, "market");
-        const royaltiesAmount = (buyer1RaffleAmount.add(buyer2RaffleAmount) * royaltyValue) / 10000;
-        const marketFeeAmount =
+        const royaltiesAmountRaw =
+            (buyer1RaffleAmount.add(buyer2RaffleAmount) * royaltyValue) / 10000;
+        const royaltiesAmount = ethers.utils.parseUnits(royaltiesAmountRaw.toString(), "wei");
+        const marketFeeAmountRaw =
             ((buyer1RaffleAmount.add(buyer2RaffleAmount) - royaltiesAmount) * marketFee) / 10000;
         await getBalance(balanceHelper, helperAddress, "helper");
+        const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
         const endBuyer1TokenAmount = Number(await nft.balanceOf(buyer1Address, tokenId));
         const endBuyer2TokenAmount = Number(await nft.balanceOf(buyer2Address, tokenId));
         const endMarketTokenAmount = Number(await nft.balanceOf(market.address, tokenId));
@@ -226,27 +214,31 @@ describe("************ Raffles ******************", () => {
                 iniBuyer1TokenAmount -
                 iniBuyer2TokenAmount
         ).to.equal(tokensAmount);
-        expect(endArtistBalance).to.equal(iniArtistBalance + formatBigNumber(royaltiesAmount));
-        expect(formatBigNumber(endOwnerMarketBalance)).to.equal(
-            formatBigNumber(iniOwnerMarketBalance) + formatBigNumber(marketFeeAmount)
+        expect(Number(endArtistBalance)).to.equal(Number(iniArtistBalance.add(royaltiesAmount)));
+        expect(Number(endOwnerMarketBalance)).to.equal(
+            Number(iniOwnerMarketBalance.add(marketFeeAmount))
         );
-        expect(endSellerBalance * 1e18).to.equal(
-            iniSellerBalance * 1e18 +
-                Number(buyer1RaffleAmount) +
-                Number(buyer2RaffleAmount) -
-                Number(royaltiesAmount) -
-                Number(marketFeeAmount)
+        expect(Number(endSellerBalance)).to.equal(
+            Number(
+                iniSellerBalance
+                    .add(buyer1RaffleAmount)
+                    .add(buyer2RaffleAmount)
+                    .sub(royaltiesAmount)
+                    .sub(marketFeeAmount)
+            )
         );
-        expect(endMarketBalance * 1e18).to.equal(
-            iniMarketBalance * 1e18 -
-                Number(buyer1RaffleAmount) -
-                Number(buyer2RaffleAmount) +
-                Number(marketFeeAmount)
+        expect(Number(endMarketBalance)).to.equal(
+            Number(
+                iniMarketBalance
+                    .sub(buyer1RaffleAmount)
+                    .sub(buyer2RaffleAmount)
+                    .add(marketFeeAmount)
+            )
         );
         expect(endItem.sales[0].seller).to.equal(sellerAddress);
         expect(endItem.sales[0].buyer).to.be.oneOf([buyer1Address, buyer2Address]);
-        expect(formatBigNumber(endItem.sales[0].price)).to.equal(
-            formatBigNumber(buyer1RaffleAmount.add(buyer2RaffleAmount))
+        expect(Number(endItem.sales[0].price)).to.equal(
+            Number(buyer1RaffleAmount.add(buyer2RaffleAmount))
         );
         expect(iniRaffles.length - endRaffles.length).to.equal(1);
     });

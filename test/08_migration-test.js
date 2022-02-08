@@ -69,6 +69,12 @@ describe("************ Migration ******************", () => {
         auctions.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
             const auctionData = await migration.idToAuctionData(positionOld.positionId);
+            const [auctionAddrOld, auctionAmountsOld] = await market.fetchAuctionBids(
+                positionOld.positionId
+            );
+            const [auctionAddrNew, auctionAmountsNew] = await migration.fetchAuctionBids(
+                positionOld.positionId
+            );
             expect(Number(position.positionId)).to.equal(Number(positionOld.positionId));
             expect(Number(position.itemId)).to.equal(Number(positionOld.item.itemId));
             expect(position.owner).to.equal(positionOld.owner);
@@ -82,6 +88,11 @@ describe("************ Migration ******************", () => {
             expect(Number(auctionData.highestBid)).to.equal(
                 Number(positionOld.auctionData.highestBid)
             );
+            expect(auctionAddrNew.length).to.equal(auctionAddrOld.length);
+            auctionAddrOld.forEach((addr, index) => {
+                expect(addr).to.equal(auctionAddrNew[index]);
+                expect(auctionAmountsOld[index]).to.equal(auctionAmountsNew[index]);
+            });
         });
 
         const raffles = await market.fetchPositionsByState(3);

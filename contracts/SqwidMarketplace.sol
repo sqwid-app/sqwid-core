@@ -61,6 +61,9 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 minBid;
         address highestBidder;
         uint256 highestBid;
+        mapping(address => uint256) addressToAmount;
+        mapping(uint256 => address) indexToAddress;
+        uint256 totalAddresses;
     }
 
     struct RaffleData {
@@ -96,9 +99,16 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 price;
         uint256 marketFee;
         PositionState state;
-        AuctionData auctionData;
+        AuctionDataResponse auctionData;
         RaffleDataResponse raffleData;
         LoanData loanData;
+    }
+
+    struct AuctionDataResponse {
+        uint256 deadline;
+        uint256 minBid;
+        address highestBidder;
+        uint256 highestBid;
     }
 
     struct RaffleDataResponse {
@@ -203,6 +213,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
      */
     function withdraw() external {
         uint256 amount = addressBalance[msg.sender];
+        require(amount > 0, "SqwidMarket: No Reef to be claimed");
         addressBalance[msg.sender] = 0;
         payable(msg.sender).transfer(amount);
     }
@@ -363,7 +374,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         positionExists(positionId)
         returns (PositionResponse memory)
     {
-        AuctionData memory auctionData;
+        AuctionDataResponse memory auctionData;
         RaffleDataResponse memory raffleData;
         LoanData memory loanData;
         Item memory item = _idToItem[_idToPosition[positionId].itemId];
@@ -375,7 +386,10 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
                 item.tokenId
             );
         } else if (_idToPosition[positionId].state == PositionState.Auction) {
-            auctionData = _idToAuctionData[positionId];
+            auctionData.deadline = _idToAuctionData[positionId].deadline;
+            auctionData.minBid = _idToAuctionData[positionId].minBid;
+            auctionData.highestBidder = _idToAuctionData[positionId].highestBidder;
+            auctionData.highestBid = _idToAuctionData[positionId].highestBid;
         } else if (_idToPosition[positionId].state == PositionState.Raffle) {
             raffleData.deadline = _idToRaffleData[positionId].deadline;
             raffleData.totalValue = _idToRaffleData[positionId].totalValue;
@@ -654,8 +668,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 deadline = (block.timestamp + numMinutes * 1 minutes);
         _idToAuctionData[positionId].deadline = deadline;
         _idToAuctionData[positionId].minBid = minBid;
-        _idToAuctionData[positionId].highestBidder = address(0);
-        _idToAuctionData[positionId].highestBid = 0;
 
         _stateToCounter[PositionState.Auction].increment();
 
@@ -679,32 +691,27 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         positionInState(positionId, PositionState.Auction)
         nonReentrant
     {
-        address highestBidder = _idToAuctionData[positionId].highestBidder;
-        uint256 highestBid = _idToAuctionData[positionId].highestBid;
         require(
             _idToAuctionData[positionId].deadline >= block.timestamp,
             "SqwidMarket: Auction has ended"
         );
+        uint256 totalBid = _idToAuctionData[positionId].addressToAmount[msg.sender] + msg.value;
         require(
-            (msg.value >= _idToAuctionData[positionId].minBid && msg.value > highestBid) ||
-                msg.sender == highestBidder,
+            totalBid > _idToAuctionData[positionId].highestBid &&
+                totalBid >= _idToAuctionData[positionId].minBid,
             "SqwidMarket: Bid value invalid"
         );
 
         // Update AuctionData
-        if (msg.sender == highestBidder) {
-            // Highest bidder increases bid value
-            _idToAuctionData[positionId].highestBid += msg.value;
-        } else {
-            if (highestBidder != address(0)) {
-                // Return bid amount to previous highest bidder, if exists
-                if (!payable(highestBidder).send(highestBid)) {
-                    addressBalance[highestBidder] += highestBid;
-                }
-            }
-            _idToAuctionData[positionId].highestBid = msg.value;
-            _idToAuctionData[positionId].highestBidder = msg.sender;
+        _idToAuctionData[positionId].highestBid = totalBid;
+        _idToAuctionData[positionId].highestBidder = msg.sender;
+        if (msg.value == totalBid) {
+            _idToAuctionData[positionId].indexToAddress[
+                _idToAuctionData[positionId].totalAddresses
+            ] = payable(msg.sender);
+            _idToAuctionData[positionId].totalAddresses += 1;
         }
+        _idToAuctionData[positionId].addressToAmount[msg.sender] = totalBid;
 
         // Extend deadline if we are on last 10 minutes
         uint256 secsToDeadline = _idToAuctionData[positionId].deadline - block.timestamp;
@@ -745,6 +752,15 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             _idToItem[itemId].sales.push(
                 ItemSale(seller, receiver, _idToAuctionData[positionId].highestBid, amount)
             );
+            // Send back bids to other bidders
+            uint256 totalAddresses = _idToAuctionData[positionId].totalAddresses;
+            for (uint256 i; i < totalAddresses; i++) {
+                address addr = _idToAuctionData[positionId].indexToAddress[i];
+                uint256 bidAmount = _idToAuctionData[positionId].addressToAmount[addr];
+                if (addr != receiver) {
+                    addressBalance[addr] += bidAmount;
+                }
+            }
             emit MarketItemSold(
                 itemId,
                 _idToItem[itemId].nftContract,
@@ -774,6 +790,31 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _stateToCounter[PositionState.Auction].decrement();
 
         _updateAvailablePosition(itemId, receiver);
+    }
+
+    /**
+     * Returns addresses and bids of an active auction.
+     */
+    function fetchAuctionBids(uint256 positionId)
+        external
+        view
+        positionInState(positionId, PositionState.Auction)
+        returns (address[] memory, uint256[] memory)
+    {
+        uint256 totalAddresses = _idToAuctionData[positionId].totalAddresses;
+
+        // Initialize array
+        address[] memory addresses = new address[](totalAddresses);
+        uint256[] memory amounts = new uint256[](totalAddresses);
+
+        // Fill arrays
+        for (uint256 i; i < totalAddresses; i++) {
+            address currAddress = _idToAuctionData[positionId].indexToAddress[i];
+            addresses[i] = currAddress;
+            amounts[i] = _idToAuctionData[positionId].addressToAmount[currAddress];
+        }
+
+        return (addresses, amounts);
     }
 
     /////////////////////////// RAFFLE ////////////////////////////////////

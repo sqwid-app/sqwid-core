@@ -49,6 +49,9 @@ contract MarketMigrationSample {
         uint256 minBid;
         address highestBidder;
         uint256 highestBid;
+        mapping(address => uint256) addressToAmount;
+        mapping(uint256 => address) indexToAddress;
+        uint256 totalAddresses;
     }
 
     struct RaffleData {
@@ -79,6 +82,27 @@ contract MarketMigrationSample {
 
     function fetchItemSales(uint256 itemId) external view returns (ItemSale[] memory) {
         return idToItem[itemId].sales;
+    }
+
+    function fetchAuctionBids(uint256 positionId)
+        external
+        view
+        returns (address[] memory, uint256[] memory)
+    {
+        uint256 totalAddresses = idToAuctionData[positionId].totalAddresses;
+
+        // Initialize array
+        address[] memory addresses = new address[](totalAddresses);
+        uint256[] memory amounts = new uint256[](totalAddresses);
+
+        // Fill arrays
+        for (uint256 i; i < totalAddresses; i++) {
+            address currAddress = idToAuctionData[positionId].indexToAddress[i];
+            addresses[i] = currAddress;
+            amounts[i] = idToAuctionData[positionId].addressToAmount[currAddress];
+        }
+
+        return (addresses, amounts);
     }
 
     function fetchRaffleAmounts(uint256 positionId)
@@ -157,12 +181,21 @@ contract MarketMigrationSample {
         for (uint256 i; i < auctions.length; i++) {
             ISqwidMarketplace.PositionResponse memory positionOld = auctions[i];
             idToPosition[positionOld.positionId] = _mapPosition(positionOld, PositionState.Auction);
-            idToAuctionData[positionOld.positionId] = AuctionData(
-                positionOld.auctionData.deadline,
-                positionOld.auctionData.minBid,
-                positionOld.auctionData.highestBidder,
-                positionOld.auctionData.highestBid
-            );
+
+            idToAuctionData[positionOld.positionId].deadline = positionOld.auctionData.deadline;
+            idToAuctionData[positionOld.positionId].highestBid = positionOld.auctionData.highestBid;
+            idToAuctionData[positionOld.positionId].highestBidder = positionOld
+                .auctionData
+                .highestBidder;
+
+            (address[] memory addresses, uint256[] memory amounts) = ISqwidMarketplace(
+                oldMarketplace
+            ).fetchAuctionBids(positionOld.positionId);
+            idToAuctionData[positionOld.positionId].totalAddresses = addresses.length;
+            for (uint256 j; j < addresses.length; j++) {
+                idToAuctionData[positionOld.positionId].indexToAddress[j] = addresses[j];
+                idToAuctionData[positionOld.positionId].addressToAmount[addresses[j]] = amounts[j];
+            }
         }
 
         // Raffle positions

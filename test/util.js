@@ -5,10 +5,10 @@ exports.getBalance = async (balanceHelper, address, name) => {
     const balanceFormatted = Number(ethers.utils.formatUnits(balance.toString(), "ether"));
     console.log(`\t\tBalance of ${name}:`, balanceFormatted);
 
-    return balanceFormatted;
+    return balance;
 };
 
-exports.formatBigNumber = (bigNumber) => {
+formatBigNumber = (bigNumber) => {
     return Number(ethers.utils.formatUnits(bigNumber.toString(), "ether"));
 };
 

@@ -2,7 +2,6 @@ const { expect } = require("chai");
 const {
     getMainContracts,
     getBalanceHelper,
-    formatBigNumber,
     getBalance,
     throwsException,
     delay,
@@ -108,8 +107,8 @@ describe("************ Loans ******************", () => {
         expect(loan.owner).to.equal(borrowerAddress);
         expect(loan.item.creator).to.equal(borrowerAddress);
         expect(loan.state).to.equal(4); // Loan = 4
-        expect(formatBigNumber(loan.loanData.loanAmount)).to.equal(formatBigNumber(loanAmount));
-        expect(formatBigNumber(loan.loanData.feeAmount)).to.equal(formatBigNumber(feeAmount));
+        expect(Number(loan.loanData.loanAmount)).to.equal(Number(loanAmount));
+        expect(Number(loan.loanData.feeAmount)).to.equal(Number(feeAmount));
         expect(Number(loan.loanData.numMinutes)).to.equal(loanDuration);
         expect(parseInt(loan.loanData.lender, 16)).to.equal(0);
         expect(Number(loan.loanData.deadline)).to.equal(0);
@@ -169,19 +168,20 @@ describe("************ Loans ******************", () => {
         const endMarketBalance = await getBalance(balanceHelper, market.address, "market");
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
         deadline = new Date(loan.loanData.deadline * 1000);
-        const marketFeeAmount = (loanAmount * marketFee) / 10000;
+        const marketFeeAmountRaw = (loanAmount * marketFee) / 10000;
+        const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
 
         // Evaluate results
         expect(loan.loanData.lender).to.equal(lenderAddress);
-        expect(endBorrowerBalance).to.equals(
-            iniBorrowerBalance + formatBigNumber(loanAmount) - formatBigNumber(marketFeeAmount)
+        expect(Number(endBorrowerBalance)).to.equals(
+            Number(iniBorrowerBalance.add(loanAmount).sub(marketFeeAmount))
         );
-        expect(endLenderBalance * 1e18)
-            .to.lte(iniLenderBalance * 1e18 - Number(loanAmount))
-            .gt(iniLenderBalance * 1e18 - Number(loanAmount) - Number(maxGasFee));
-        expect(endMarketBalance * 1e18).to.equal(iniMarketBalance * 1e18 + Number(marketFeeAmount));
+        expect(Number(endLenderBalance))
+            .to.lte(Number(iniLenderBalance.sub(loanAmount)))
+            .gt(Number(iniLenderBalance.sub(loanAmount).sub(maxGasFee)));
+        expect(Number(endMarketBalance)).to.equal(Number(iniMarketBalance.add(marketFeeAmount)));
         expect(Number(endOwnerMarketBalance)).to.equal(
-            Number(iniOwnerMarketBalance) + Number(marketFeeAmount)
+            Number(iniOwnerMarketBalance.add(marketFeeAmount))
         );
         expect(deadline)
             .to.lt(new Date(new Date().getTime() + 90000))
@@ -250,10 +250,10 @@ describe("************ Loans ******************", () => {
         ).to.equal(token1Amount);
         expect(iniMarketTokenAmount - endMarketTokenAmount).to.equal(token1Amount);
         expect(endLoans.length).to.equal(iniLoans.length - 1);
-        expect(endBorrowerBalance).to.equals(iniBorrowerBalance);
-        expect(endLenderBalance)
-            .to.lte(iniLenderBalance)
-            .gt(iniLenderBalance - formatBigNumber(maxGasFee));
+        expect(Number(endBorrowerBalance)).to.equals(Number(iniBorrowerBalance));
+        expect(Number(endLenderBalance))
+            .to.lte(Number(iniLenderBalance))
+            .gt(Number(iniLenderBalance.sub(maxGasFee)));
     });
 
     it("Should not repay loan if value sent is not enough", async () => {
@@ -312,17 +312,12 @@ describe("************ Loans ******************", () => {
         const endBorrowerBalance = await getBalance(balanceHelper, borrowerAddress, "borrower");
 
         // Evaluate results
-        expect(endLenderBalance).to.equals(
-            iniLenderBalance + formatBigNumber(loanAmount) + formatBigNumber(feeAmount)
+        expect(Number(endLenderBalance)).to.equals(
+            Number(iniLenderBalance.add(loanAmount).add(feeAmount))
         );
-        expect(endBorrowerBalance)
-            .to.lte(iniBorrowerBalance - formatBigNumber(loanAmount) - formatBigNumber(feeAmount))
-            .gt(
-                iniBorrowerBalance -
-                    formatBigNumber(loanAmount) -
-                    formatBigNumber(feeAmount) -
-                    formatBigNumber(maxGasFee)
-            );
+        expect(Number(endBorrowerBalance))
+            .to.lte(Number(iniBorrowerBalance.sub(loanAmount).sub(feeAmount)))
+            .gt(Number(iniBorrowerBalance.sub(loanAmount).sub(feeAmount).sub(maxGasFee)));
         expect(endBorrowerTokenAmount - iniBorrowerTokenAmount).to.equal(token2Amount);
         expect(iniMarketTokenAmount - endMarketTokenAmount).to.equal(token2Amount);
         expect(endLoans.length).to.equal(iniLoans.length - 1);

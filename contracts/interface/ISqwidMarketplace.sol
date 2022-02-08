@@ -41,6 +41,9 @@ interface ISqwidMarketplace {
         uint256 minBid;
         address highestBidder;
         uint256 highestBid;
+        mapping(address => uint256) addressToAmount;
+        mapping(uint256 => address) indexToAddress;
+        uint256 totalAddresses;
     }
 
     struct RaffleData {
@@ -76,9 +79,16 @@ interface ISqwidMarketplace {
         uint256 price;
         uint256 marketFee;
         PositionState state;
-        AuctionData auctionData;
+        AuctionDataResponse auctionData;
         RaffleDataResponse raffleData;
         LoanData loanData;
+    }
+
+    struct AuctionDataResponse {
+        uint256 deadline;
+        uint256 minBid;
+        address highestBidder;
+        uint256 highestBid;
     }
 
     struct RaffleDataResponse {
@@ -95,6 +105,11 @@ interface ISqwidMarketplace {
         external
         view
         returns (PositionResponse[] memory);
+
+    function fetchAuctionBids(uint256 positionId)
+        external
+        view
+        returns (address[] memory, uint256[] memory);
 
     function fetchRaffleAmounts(uint256 positionId)
         external
