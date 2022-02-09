@@ -15,6 +15,7 @@ formatBigNumber = (bigNumber) => {
 exports.throwsException = async (promise, message) => {
     try {
         await promise;
+        console.log("Promise was expected to throw error but did not.");
         assert(false);
     } catch (error) {
         expect(error.message).contains(message);

@@ -7,7 +7,7 @@ const {
     delay,
 } = require("./util");
 
-describe.only("************ Auctions ******************", () => {
+describe("************ Auctions ******************", () => {
     let market,
         nft,
         balanceHelper,
@@ -85,7 +85,7 @@ describe.only("************ Auctions ******************", () => {
         console.log("\tcreating market item...");
         const tx1 = await market
             .connect(seller)
-            .mint(tokensAmount, "https://fake-uri.com", artistAddress, royaltyValue);
+            .mint(tokensAmount, "https://fake-uri.com", "image", artistAddress, royaltyValue);
         const receipt1 = await tx1.wait();
         itemId = receipt1.events[2].args[0].toNumber();
         tokenId = receipt1.events[2].args[2].toNumber();

@@ -128,6 +128,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
 
     mapping(address => uint256) public addressBalance;
     uint256 public marketFee;
+    uint256 public mimeTypeFee = 10; // TODO
     address public nftContractAddress;
 
     event ItemCreated(
@@ -224,13 +225,15 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     function mint(
         uint256 amount,
         string memory tokenURI,
+        string calldata mimeType,
         address royaltyRecipient,
         uint256 royaltyValue
-    ) external {
+    ) external payable {
         uint256 tokenId = ISqwidERC1155(nftContractAddress).mint(
             msg.sender,
             amount,
             tokenURI,
+            mimeType,
             royaltyRecipient,
             royaltyValue
         );
@@ -243,16 +246,30 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     function mintBatch(
         uint256[] memory amounts,
         string[] memory tokenURIs,
+        string[] calldata mimeTypes,
         address[] memory royaltyRecipients,
         uint256[] memory royaltyValues
-    ) external {
+    ) external payable {
+        uint256 videoTypeCount;
+        for (uint256 i; i < mimeTypes.length; i++) {
+            if (keccak256(bytes(mimeTypes[i])) == keccak256("video")) {
+                videoTypeCount++;
+            }
+        }
+        require(
+            msg.value >= mimeTypeFee * videoTypeCount * 1e18,
+            "SqwidMarket: MIME type fee not paid"
+        );
+
         uint256[] memory tokenIds = ISqwidERC1155(nftContractAddress).mintBatch(
             msg.sender,
             amounts,
             tokenURIs,
+            mimeTypes,
             royaltyRecipients,
             royaltyValues
         );
+
         for (uint256 i; i < tokenIds.length; i++) {
             createItem(tokenIds[i]);
         }
@@ -261,11 +278,16 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     /**
      * Creates new market item.
      */
-    function createItem(uint256 tokenId) public returns (uint256) {
+    function createItem(uint256 tokenId) public payable returns (uint256) {
         require(
             ISqwidERC1155(nftContractAddress).balanceOf(msg.sender, tokenId) > 0,
             "SqwidMarket: Address balance too low"
         );
+        string memory mimeType = ISqwidERC1155(nftContractAddress).mimeType(tokenId);
+        if (keccak256(bytes(mimeType)) == keccak256("video")) {
+            require(msg.value >= mimeTypeFee * 1e18, "SqwidMarket: MIME type fee not paid");
+            addressBalance[owner()] += mimeTypeFee * 1e18;
+        }
 
         // Check if item already exists
         uint256 totalItemCount = _itemIds.current();
@@ -890,9 +912,9 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             _idToRaffleData[positionId].deadline >= block.timestamp,
             "SqwidMarket: Raffle has ended"
         );
-        require(msg.value >= 1 * (10**18), "SqwidMarket: Value sent invalid");
+        require(msg.value >= 1 * 1e18, "SqwidMarket: Value sent invalid");
 
-        uint256 value = msg.value / (10**18);
+        uint256 value = msg.value / 1e18;
 
         // Update RaffleData
         if (!(_idToRaffleData[positionId].addressToAmount[msg.sender] > 0)) {
@@ -936,10 +958,10 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
                 if (indexWinner < lastIndex) {
                     receiver = currAddress;
                     // Create transaction to winner
-                    _createItemTransaction(positionId, receiver, totalValue * (10**18), amount);
+                    _createItemTransaction(positionId, receiver, totalValue * 1e18, amount);
                     // Add sale to item
                     _idToItem[itemId].sales.push(
-                        ItemSale(seller, receiver, totalValue * (10**18), amount)
+                        ItemSale(seller, receiver, totalValue * 1e18, amount)
                     );
                     emit MarketItemSold(
                         itemId,

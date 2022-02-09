@@ -23,6 +23,7 @@ abstract contract SqwidERC1155Wrapper is ERC721Holder, ERC1155Holder {
 
     Counters.Counter internal _wrappedCounter;
     mapping(uint256 => WrappedToken) internal _wrappedTokens;
+    mapping(uint256 => uint256) internal _wrappedIdToTokenId;
 
     event WrapToken(
         uint256 tokenId,
@@ -47,10 +48,11 @@ abstract contract SqwidERC1155Wrapper is ERC721Holder, ERC1155Holder {
         return _wrappedTokens[tokenId];
     }
 
-    function wrapERC721(address extNftContract, uint256 extTokenId)
-        external
-        virtual
-        returns (uint256);
+    function wrapERC721(
+        address extNftContract,
+        uint256 extTokenId,
+        string calldata mimeType
+    ) external virtual returns (uint256);
 
     function unwrapERC721(uint256 tokenId) external virtual;
 
@@ -59,6 +61,7 @@ abstract contract SqwidERC1155Wrapper is ERC721Holder, ERC1155Holder {
     function wrapERC1155(
         address extNftContract,
         uint256 extTokenId,
+        string calldata mimeType,
         uint256 amount
     ) external virtual returns (uint256);
 
@@ -72,11 +75,12 @@ abstract contract SqwidERC1155Wrapper is ERC721Holder, ERC1155Holder {
         uint256 tokenId;
         uint256 totalWrappedCount = _wrappedCounter.current();
         for (uint256 i; i < totalWrappedCount; i++) {
+            WrappedToken memory wrappedToken = _wrappedTokens[_wrappedIdToTokenId[i + 1]];
             if (
-                _wrappedTokens[i + 1].extNftContract == extNftContract &&
-                _wrappedTokens[i + 1].extTokenId == extTokenId
+                wrappedToken.extNftContract == extNftContract &&
+                wrappedToken.extTokenId == extTokenId
             ) {
-                tokenId = _wrappedTokens[i + 1].tokenId;
+                tokenId = wrappedToken.tokenId;
                 break;
             }
         }

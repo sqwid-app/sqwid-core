@@ -55,8 +55,8 @@ module.exports = {
         timeout: 150000,
     },
     contracts: {
-        market: "0x1c1E740dD08106727cEEdF9a5459a4e4389a774a",
-        nft: "0xE2b703da39c55A6Be66F3C7C00AD3AC8d4E2B82D",
+        market: "",
+        nft: "0x377c6b6b610A67c9fFF1DDA20baB3cba56db3347",
         balanceHelper: "0x6aC1413A64b153aA16fabbD9F97D30dC2CDE2604",
         dummyERC721: "0xf5c05d8013724AC037eE6AD9CCea04905384bacE",
         dummyERC1155: "0x90232AC468647bFf589825680c78546E021c805B",

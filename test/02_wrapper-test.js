@@ -14,7 +14,6 @@ describe("************ Wrapper ******************", () => {
         dummyERC721Address,
         dummyERC721RoyaltiesAddress,
         dummyERC1155Address,
-        sqwidNftAddress,
         user1Address,
         user2Address,
         user3Address,
@@ -46,7 +45,6 @@ describe("************ Wrapper ******************", () => {
         // Deploy or get existing contracts
         const contracts = await getMainContracts(marketFee, owner);
         sqwidNft = contracts.nft;
-        sqwidNftAddress = sqwidNft.address;
         const dummyNftContract = await getDummyNfts();
         dummyERC721 = dummyNftContract.dummyERC721;
         dummyERC1155 = dummyNftContract.dummyERC1155;
@@ -68,23 +66,23 @@ describe("************ Wrapper ******************", () => {
         console.log(`\tToken 2 id: ${token2Id}`);
 
         // Set approval for nft contracts
-        await dummyERC721.connect(user1).setApprovalForAll(sqwidNftAddress, true);
-        await dummyERC1155.connect(user2).setApprovalForAll(sqwidNftAddress, true);
-        await dummyERC1155.connect(user3).setApprovalForAll(sqwidNftAddress, true);
-        await dummyERC721Royalties.connect(user1).setApprovalForAll(sqwidNftAddress, true);
+        await dummyERC721.connect(user1).setApprovalForAll(sqwidNft.address, true);
+        await dummyERC1155.connect(user2).setApprovalForAll(sqwidNft.address, true);
+        await dummyERC1155.connect(user3).setApprovalForAll(sqwidNft.address, true);
+        await dummyERC721Royalties.connect(user1).setApprovalForAll(sqwidNft.address, true);
     });
 
     it("Should not allow to wrap ERC721 if is not owner", async () => {
         console.log("\twrapping token 1...");
         await throwsException(
-            sqwidNft.connect(user2).wrapERC721(dummyERC721Address, token1Id),
+            sqwidNft.connect(user2).wrapERC721(dummyERC721Address, token1Id, "image"),
             "ERC1155: Sender is not token owner"
         );
     });
 
     it("Should wrap ERC721", async () => {
         console.log("\twrapping token 1...");
-        const tx1 = await sqwidNft.connect(user1).wrapERC721(dummyERC721Address, token1Id);
+        const tx1 = await sqwidNft.connect(user1).wrapERC721(dummyERC721Address, token1Id, "image");
         const receipt1 = await tx1.wait();
         wrappedToken1Id = receipt1.events[2].args[3];
         console.log(`\tToken wrapped into token ${wrappedToken1Id}.`);
@@ -93,13 +91,14 @@ describe("************ Wrapper ******************", () => {
         const royaltyInfo = await sqwidNft.royaltyInfo(wrappedToken1Id, 10000);
 
         // Original token
-        expect(await dummyERC721.ownerOf(token1Id)).to.equal(sqwidNftAddress);
+        expect(await dummyERC721.ownerOf(token1Id)).to.equal(sqwidNft.address);
         // Wrapped token
         expect(Number(wrappedToken.tokenId)).to.equal(Number(wrappedToken1Id));
         assert(wrappedToken.isErc721);
         expect(Number(wrappedToken.extTokenId)).to.equal(token1Id);
         expect(wrappedToken.extNftContract).to.equal(dummyERC721Address);
         expect(await sqwidNft.uri(wrappedToken1Id)).to.equal(await dummyERC721.tokenURI(token1Id));
+        expect(await sqwidNft.mimeType(wrappedToken1Id)).to.equal("image");
         expect(Number(await sqwidNft.getTokenSupply(wrappedToken1Id))).to.equal(1);
         expect(Number(await sqwidNft.balanceOf(user1Address, wrappedToken1Id)), 1);
         expect(royaltyInfo.receiver).to.equal(ethers.constants.AddressZero);
@@ -129,14 +128,16 @@ describe("************ Wrapper ******************", () => {
     it("Should not allow to wrap ERC1155 has not enough balance", async () => {
         console.log("\twrapping token 2...");
         await throwsException(
-            sqwidNft.connect(user1).wrapERC1155(dummyERC1155Address, token2Id, 100),
+            sqwidNft.connect(user1).wrapERC1155(dummyERC1155Address, token2Id, "image", 100),
             "ERC1155: Not enough tokens owned"
         );
     });
 
     it("Should wrap ERC1155", async () => {
         console.log("\twrapping 10 units of token 2...");
-        const tx1 = await sqwidNft.connect(user2).wrapERC1155(dummyERC1155Address, token2Id, 10);
+        const tx1 = await sqwidNft
+            .connect(user2)
+            .wrapERC1155(dummyERC1155Address, token2Id, "video", 10);
         const receipt1 = await tx1.wait();
         wrappedToken2Id = receipt1.events[1].args[3];
         console.log(`\tToken wrapped into token ${wrappedToken2Id}.`);
@@ -148,13 +149,14 @@ describe("************ Wrapper ******************", () => {
         expect(Number(await dummyERC1155.balanceOf(user2Address, token2Id))).to.equal(
             token2Amount - 10
         );
-        expect(Number(await dummyERC1155.balanceOf(sqwidNftAddress, token2Id))).to.equal(10);
+        expect(Number(await dummyERC1155.balanceOf(sqwidNft.address, token2Id))).to.equal(10);
         // Wrapped token
         expect(Number(wrappedToken.tokenId)).to.equal(Number(wrappedToken2Id));
         assert(!wrappedToken.isErc721);
         expect(Number(wrappedToken.extTokenId)).to.equal(token2Id);
         expect(wrappedToken.extNftContract).to.equal(dummyERC1155Address);
         expect(await sqwidNft.uri(wrappedToken2Id)).to.equal(await dummyERC1155.uri(token2Id));
+        expect(await sqwidNft.mimeType(wrappedToken2Id)).to.equal("video");
         expect(Number(await sqwidNft.getTokenSupply(wrappedToken2Id))).to.equal(10);
         expect(Number(await sqwidNft.balanceOf(user2Address, wrappedToken2Id)), 10);
         expect(Number(royaltyInfo.royaltyAmount)).to.equal(0);
@@ -175,10 +177,10 @@ describe("************ Wrapper ******************", () => {
 
         // Original token
         expect(Number(await dummyERC1155.balanceOf(user2Address, token2Id))).to.equal(token2Amount);
-        expect(Number(await dummyERC1155.balanceOf(sqwidNftAddress, token2Id))).to.equal(0);
+        expect(Number(await dummyERC1155.balanceOf(sqwidNft.address, token2Id))).to.equal(0);
         // Wrapped token
         expect(Number(await sqwidNft.getTokenSupply(wrappedToken2Id))).to.equal(0);
-        expect(Number(await sqwidNft.balanceOf(user2Address, wrappedToken1Id)), 0);
+        expect(Number(await sqwidNft.balanceOf(user2Address, wrappedToken2Id)), 0);
     });
 
     it("Should wrap ERC1155 tokens from multiple users", async () => {
@@ -188,13 +190,13 @@ describe("************ Wrapper ******************", () => {
             .safeTransferFrom(user2Address, user3Address, token2Id, 5, "0x");
 
         console.log("\tuser 2 wrapping 20 units of token 2...");
-        await sqwidNft.connect(user2).wrapERC1155(dummyERC1155Address, token2Id, 20);
+        await sqwidNft.connect(user2).wrapERC1155(dummyERC1155Address, token2Id, "audio", 20);
 
         console.log("\tuser 2 wrapping 10 units more...");
-        await sqwidNft.connect(user2).wrapERC1155(dummyERC1155Address, token2Id, 10);
+        await sqwidNft.connect(user2).wrapERC1155(dummyERC1155Address, token2Id, "image", 10);
 
         console.log("\tuser 3 wrapping 5 units...");
-        await sqwidNft.connect(user3).wrapERC1155(dummyERC1155Address, token2Id, 5);
+        await sqwidNft.connect(user3).wrapERC1155(dummyERC1155Address, token2Id, "other", 5);
 
         const wrappedToken = await sqwidNft.getWrappedToken(wrappedToken2Id);
 
@@ -203,7 +205,7 @@ describe("************ Wrapper ******************", () => {
             token2Amount - 20 - 10 - 5
         );
         expect(Number(await dummyERC1155.balanceOf(user3Address, token2Id))).to.equal(0);
-        expect(Number(await dummyERC1155.balanceOf(sqwidNftAddress, token2Id))).to.equal(
+        expect(Number(await dummyERC1155.balanceOf(sqwidNft.address, token2Id))).to.equal(
             20 + 5 + 10
         );
         // Wrapped token
@@ -212,6 +214,7 @@ describe("************ Wrapper ******************", () => {
         expect(Number(wrappedToken.extTokenId)).to.equal(token2Id);
         expect(wrappedToken.extNftContract).to.equal(dummyERC1155Address);
         expect(await sqwidNft.uri(wrappedToken2Id)).to.equal(await dummyERC1155.uri(token2Id));
+        expect(await sqwidNft.mimeType(wrappedToken2Id)).to.equal("video");
         expect(Number(await sqwidNft.getTokenSupply(wrappedToken2Id))).to.equal(20 + 5 + 10);
         expect(Number(await sqwidNft.balanceOf(user2Address, wrappedToken2Id)), 20 + 10);
         expect(Number(await sqwidNft.balanceOf(user3Address, wrappedToken2Id)), 5);
@@ -229,7 +232,9 @@ describe("************ Wrapper ******************", () => {
         expect(await dummyERC721Royalties.ownerOf(tokenId)).to.equal(user1Address);
 
         console.log("\twrapping token with royalties...");
-        const tx2 = await sqwidNft.connect(user1).wrapERC721(dummyERC721RoyaltiesAddress, tokenId);
+        const tx2 = await sqwidNft
+            .connect(user1)
+            .wrapERC721(dummyERC721RoyaltiesAddress, tokenId, "model");
         const receipt2 = await tx2.wait();
         const wrappedTokenId = receipt2.events[2].args[3];
         console.log(`\tToken wrapped into token ${wrappedTokenId}.`);

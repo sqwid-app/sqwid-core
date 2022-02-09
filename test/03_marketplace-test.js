@@ -1,12 +1,13 @@
 const { expect, assert } = require("chai");
-const { getMainContracts } = require("./util");
+const { getMainContracts, throwsException } = require("./util");
 
-describe("************ Marketplace ******************", () => {
+describe.only("************ Marketplace ******************", () => {
     let market,
         owner,
         creator,
         artist,
         marketFee,
+        mimeTypeFee,
         ownerAddress,
         creatorAddress,
         artistAddress,
@@ -26,12 +27,15 @@ describe("************ Marketplace ******************", () => {
         // Initialize global variables
         marketFee = 250; // 2.5%
         royaltyValue = 1000; // 10%
+        mimeTypeFee = ethers.utils.parseUnits("10", "ether");
 
         // Deploy or get existing contracts
         const contracts = await getMainContracts(marketFee, owner);
         nft = contracts.nft;
         market = contracts.market;
     });
+
+    // TODO set market fees
 
     it("Should mint NFT and create market item", async () => {
         // Approve market contract
@@ -43,7 +47,7 @@ describe("************ Marketplace ******************", () => {
         console.log("\tcreating market item...");
         const tx = await market
             .connect(creator)
-            .mint(10, "https://fake-uri-1.com", artistAddress, royaltyValue);
+            .mint(10, "https://fake-uri-1.com", "image", artistAddress, royaltyValue);
         const receipt = await tx.wait();
         const itemId = receipt.events[2].args[0].toNumber();
         const tokenId = receipt.events[2].args[2].toNumber();
@@ -59,6 +63,7 @@ describe("************ Marketplace ******************", () => {
         expect(Number(royaltyInfo.royaltyAmount)).to.equal(royaltyValue);
         expect(Number(await nft.balanceOf(creatorAddress, tokenId))).to.equal(10);
         expect(await nft.uri(tokenId)).to.equal("https://fake-uri-1.com");
+        expect(await nft.mimeType(tokenId)).to.equal("image");
         expect(Number(await nft.getTokenSupply(tokenId))).to.equal(10);
 
         expect(Number(item.itemId)).to.equal(itemId);
@@ -78,6 +83,7 @@ describe("************ Marketplace ******************", () => {
             .mintBatch(
                 [10, 1],
                 ["https://fake-uri-2.com", "https://fake-uri-3.com"],
+                ["audio", "other"],
                 [artistAddress, ownerAddress],
                 [royaltyValue, 200]
             );
@@ -105,6 +111,8 @@ describe("************ Marketplace ******************", () => {
         expect(Number(await nft.balanceOf(creatorAddress, token2Id))).to.equal(1);
         expect(await nft.uri(token1Id)).to.equal("https://fake-uri-2.com");
         expect(await nft.uri(token2Id)).to.equal("https://fake-uri-3.com");
+        expect(await nft.mimeType(token1Id)).to.equal("audio");
+        expect(await nft.mimeType(token2Id)).to.equal("other");
         expect(Number(await nft.getTokenSupply(token1Id))).to.equal(10);
         expect(Number(await nft.getTokenSupply(token2Id))).to.equal(1);
 
@@ -126,7 +134,14 @@ describe("************ Marketplace ******************", () => {
         console.log("\tcreating token...");
         const tx1 = await nft
             .connect(creator)
-            .mint(creatorAddress, 1, "https://fake-uri-1.com", artistAddress, royaltyValue);
+            .mint(
+                creatorAddress,
+                1,
+                "https://fake-uri-1.com",
+                "image",
+                artistAddress,
+                royaltyValue
+            );
         const receipt1 = await tx1.wait();
         const tokenId = receipt1.events[0].args[3].toNumber();
         console.log(`\tNFT created with tokenId ${tokenId}`);
@@ -151,7 +166,14 @@ describe("************ Marketplace ******************", () => {
         console.log("\tcreating token...");
         const tx1 = await nft
             .connect(creator)
-            .mint(creatorAddress, 100, "https://fake-uri-1.com", artistAddress, royaltyValue);
+            .mint(
+                creatorAddress,
+                100,
+                "https://fake-uri-1.com",
+                "image",
+                artistAddress,
+                royaltyValue
+            );
         const receipt1 = await tx1.wait();
         const tokenId = receipt1.events[0].args[3].toNumber();
         console.log(`\tNFT created with tokenId ${tokenId}`);
@@ -196,5 +218,78 @@ describe("************ Marketplace ******************", () => {
         expect(Number(inicreatorTokenPosition.amount)).to.equal(100);
         expect(Number(endcreatorTokenPosition.amount)).to.equal(90);
         expect(Number(endArtistTokenPosition.amount)).to.equal(10);
+    });
+
+    it("Should ask for fee if MIME type is video", async () => {
+        const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
+
+        // Create token in the NFT contract
+        console.log("\tcreating token...");
+        const tx1 = await nft
+            .connect(creator)
+            .mint(
+                creatorAddress,
+                1,
+                "https://fake-uri-1.com",
+                "video",
+                artistAddress,
+                royaltyValue
+            );
+        const receipt1 = await tx1.wait();
+        const tokenId = receipt1.events[0].args[3].toNumber();
+
+        // Create market item not sending enough Reef
+        await throwsException(
+            market.connect(creator).createItem(tokenId, { value: mimeTypeFee.sub(1) }),
+            "SqwidMarket: MIME type fee not paid"
+        );
+
+        // Create market item sensing enough Reef
+        const tx2 = await market.connect(creator).createItem(tokenId, { value: mimeTypeFee });
+        const receipt2 = await tx2.wait();
+        const item1Id = receipt2.events[1].args[0].toNumber();
+        const item1 = await market.fetchItem(item1Id);
+
+        expect(Number(item1.itemId)).to.equal(item1Id);
+
+        // Create multiple tokens and add them to the market not sending enough Reef
+        await throwsException(
+            market
+                .connect(creator)
+                .mintBatch(
+                    [10, 1],
+                    ["https://fake-uri-2.com", "https://fake-uri-3.com"],
+                    ["video", "video"],
+                    [artistAddress, ownerAddress],
+                    [royaltyValue, 200],
+                    { value: mimeTypeFee }
+                ),
+            "SqwidMarket: MIME type fee not paid"
+        );
+
+        // Create multiple tokens and add them to the market sending enough Reef
+        console.log("\tcreating tokens...");
+        const tx3 = await market
+            .connect(creator)
+            .mintBatch(
+                [10, 1],
+                ["https://fake-uri-2.com", "https://fake-uri-3.com"],
+                ["video", "video"],
+                [artistAddress, ownerAddress],
+                [royaltyValue, 200],
+                { value: mimeTypeFee.mul(2) }
+            );
+        const receipt3 = await tx3.wait();
+        const item2Id = receipt3.events[2].args[0].toNumber();
+        const item3Id = receipt3.events[4].args[0].toNumber();
+        const item2 = await market.fetchItem(item2Id);
+        const item3 = await market.fetchItem(item3Id);
+        const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
+
+        expect(Number(item2.itemId)).to.equal(item2Id);
+        expect(Number(item3.itemId)).to.equal(item3Id);
+        expect(Number(endOwnerMarketBalance - iniOwnerMarketBalance)).to.equal(
+            Number(mimeTypeFee.mul(3))
+        );
     });
 });

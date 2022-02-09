@@ -42,13 +42,49 @@ describe("************ NFT ******************", () => {
         assert(supportsErc2981);
     });
 
+    it("Should change valid MIME types", async () => {
+        assert(!(await nft.validMimeTypes("custom")));
+
+        console.log("\tchanging valid MIME types...");
+        await throwsException(
+            nft.connect(artist).setValidMimeType("custom", true),
+            "Ownable: caller is not the owner"
+        );
+        await nft.connect(contractOwner).setValidMimeType("custom", true);
+
+        assert(await nft.validMimeTypes("custom"));
+        await nft.setValidMimeType("custom", false);
+        assert(!(await nft.validMimeTypes("custom")));
+    });
+
+    it("Should not allow invalid MIME type", async () => {
+        await throwsException(
+            nft.mint(
+                creatorAddress,
+                1,
+                "https://fake-uri-1.com",
+                "custom",
+                artistAddress,
+                royaltyValue
+            ),
+            "NftMimeTypes: MIME type not valid"
+        );
+    });
+
     it("Should create tokens", async () => {
         // Create tokens
         console.log("\tcreating tokens...");
 
         const tx1 = await nft
             .connect(creator)
-            .mint(creatorAddress, 1, "https://fake-uri-1.com", artistAddress, royaltyValue);
+            .mint(
+                creatorAddress,
+                1,
+                "https://fake-uri-1.com",
+                "image",
+                artistAddress,
+                royaltyValue
+            );
         const receipt1 = await tx1.wait();
         token1Id = receipt1.events[0].args[3].toNumber();
 
@@ -58,6 +94,7 @@ describe("************ NFT ******************", () => {
                 creatorAddress,
                 [99, 10],
                 ["https://fake-uri-2.com", "https://fake-uri-3.com"],
+                ["audio", "video"],
                 [artistAddress, artistAddress],
                 [royaltyValue, royaltyValue]
             );
@@ -88,6 +125,9 @@ describe("************ NFT ******************", () => {
         expect(await nft.uri(token1Id)).to.equal("https://fake-uri-1.com");
         expect(await nft.uri(token2Id)).to.equal("https://fake-uri-2.com");
         expect(await nft.uri(token3Id)).to.equal("https://fake-uri-3.com");
+        expect(await nft.mimeType(token1Id)).to.equal("image");
+        expect(await nft.mimeType(token2Id)).to.equal("audio");
+        expect(await nft.mimeType(token3Id)).to.equal("video");
         expect(Number(token1Supply)).to.equal(1);
         expect(Number(token2Supply)).to.equal(99);
         expect(Number(token3Supply)).to.equal(10);

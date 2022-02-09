@@ -10,11 +10,18 @@ import "../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../@openzeppelin/contracts/utils/Address.sol";
 import "../@openzeppelin/contracts/utils/Context.sol";
 import "../@openzeppelin/contracts/utils/Counters.sol";
-import "../@openzeppelin/contracts/access/Ownable.sol";
 import "./base/NftRoyalties.sol";
+import "./base/NftMimeTypes.sol";
 import "./base/SqwidERC1155Wrapper.sol";
 
-contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable, SqwidERC1155Wrapper {
+contract SqwidERC1155 is
+    Context,
+    ERC165,
+    IERC1155,
+    NftRoyalties,
+    NftMimeTypes,
+    SqwidERC1155Wrapper
+{
     using Counters for Counters.Counter;
     using Address for address;
 
@@ -33,6 +40,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable, Sqwid
         address to,
         uint256 amount,
         string memory tokenURI,
+        string calldata mimeType_,
         address royaltyRecipient,
         uint256 royaltyValue
     ) public returns (uint256) {
@@ -50,6 +58,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable, Sqwid
         _doSafeTransferAcceptanceCheck(operator, address(0), to, tokenId, amount, "");
 
         _uris[tokenId] = tokenURI;
+        _setMimeType(tokenId, mimeType_);
 
         if (royaltyValue > 0) {
             _setTokenRoyalty(tokenId, royaltyRecipient, royaltyValue);
@@ -65,6 +74,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable, Sqwid
         address to,
         uint256[] memory amounts,
         string[] memory tokenURIs,
+        string[] calldata mimeTypes,
         address[] memory royaltyRecipients,
         uint256[] memory royaltyValues
     ) public returns (uint256[] memory) {
@@ -72,6 +82,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable, Sqwid
         require(
             amounts.length == royaltyRecipients.length &&
                 amounts.length == tokenURIs.length &&
+                amounts.length == mimeTypes.length &&
                 amounts.length == royaltyValues.length,
             "ERC1155: Arrays length mismatch"
         );
@@ -98,6 +109,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable, Sqwid
                 _setTokenRoyalty(ids[i], royaltyRecipients[i], royaltyValues[i]);
             }
             _uris[ids[i]] = tokenURIs[i];
+            _setMimeType(ids[i], mimeTypes[i]);
         }
 
         return ids;
@@ -301,11 +313,11 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable, Sqwid
     /**
      * Wraps ERC721 token from a different contract.
      */
-    function wrapERC721(address extNftContract, uint256 extTokenId)
-        external
-        override
-        returns (uint256)
-    {
+    function wrapERC721(
+        address extNftContract,
+        uint256 extTokenId,
+        string calldata mimeType_
+    ) external override returns (uint256) {
         require(
             IERC165(extNftContract).supportsInterface(type(IERC721).interfaceId),
             "ERC1155: Contract is not ERC721"
@@ -336,10 +348,11 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable, Sqwid
                 );
             }
             string memory uri_ = IERC721Metadata(extNftContract).tokenURI(extTokenId);
-            tokenId = mint(msg.sender, 1, uri_, royaltyRecipient, royaltyValue);
+            tokenId = mint(msg.sender, 1, uri_, mimeType_, royaltyRecipient, royaltyValue);
 
             _wrappedTokens[tokenId] = WrappedToken(tokenId, true, extTokenId, extNftContract);
             _wrappedCounter.increment();
+            _wrappedIdToTokenId[_wrappedCounter.current()] = tokenId;
         }
 
         emit WrapToken(tokenId, true, extTokenId, extNftContract, 1, true);
@@ -379,6 +392,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable, Sqwid
     function wrapERC1155(
         address extNftContract,
         uint256 extTokenId,
+        string calldata mimeType_,
         uint256 amount
     ) external override returns (uint256) {
         require(
@@ -418,9 +432,10 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, Ownable, Sqwid
             }
             string memory uri_ = IERC1155MetadataURI(extNftContract).uri(extTokenId);
 
-            tokenId = mint(msg.sender, amount, uri_, royaltyRecipient, royaltyValue);
+            tokenId = mint(msg.sender, amount, uri_, mimeType_, royaltyRecipient, royaltyValue);
             _wrappedTokens[tokenId] = WrappedToken(tokenId, false, extTokenId, extNftContract);
             _wrappedCounter.increment();
+            _wrappedIdToTokenId[_wrappedCounter.current()] = tokenId;
         }
 
         emit WrapToken(tokenId, false, extTokenId, extNftContract, amount, true);
