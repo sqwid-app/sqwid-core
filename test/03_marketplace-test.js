@@ -1,18 +1,7 @@
 const { expect, assert } = require("chai");
 const { getMainContracts, throwsException } = require("./util");
 
-describe.only("************ Marketplace ******************", () => {
-    let market,
-        owner,
-        creator,
-        artist,
-        marketFee,
-        mimeTypeFee,
-        ownerAddress,
-        creatorAddress,
-        artistAddress,
-        royaltyValue;
-
+describe("************ Marketplace ******************", () => {
     before(async () => {
         // Get accounts
         owner = await reef.getSignerByName("account1");
@@ -26,16 +15,51 @@ describe.only("************ Marketplace ******************", () => {
 
         // Initialize global variables
         marketFee = 250; // 2.5%
+        mimeTypeFee = ethers.utils.parseUnits("10", "ether");
         royaltyValue = 1000; // 10%
         mimeTypeFee = ethers.utils.parseUnits("10", "ether");
 
         // Deploy or get existing contracts
-        const contracts = await getMainContracts(marketFee, owner);
+        const contracts = await getMainContracts(marketFee, mimeTypeFee, owner);
         nft = contracts.nft;
         market = contracts.market;
+        marketUtil = contracts.marketUtil;
     });
 
-    // TODO set market fees
+    it("Should set market fees", async () => {
+        await throwsException(
+            market.connect(artist).setMarketFee(350, 1),
+            "Ownable: caller is not the owner"
+        );
+
+        await throwsException(
+            market.connect(owner).setMarketFee(350, 0),
+            "SqwidMarket: Invalid fee type"
+        );
+
+        await market.connect(owner).setMarketFee(350, 1);
+        let fetchedMarketFee = await market.connect(owner).marketFees(1);
+        expect(Number(fetchedMarketFee)).to.equal(350);
+
+        await market.connect(owner).setMarketFee(250, 1);
+        fetchedMarketFee = await market.connect(owner).marketFees(1);
+        expect(Number(fetchedMarketFee)).to.equal(250);
+    });
+
+    it("Should set MIME type fee", async () => {
+        await throwsException(
+            market.connect(artist).setMimeTypeFee(mimeTypeFee.mul(2)),
+            "Ownable: caller is not the owner"
+        );
+
+        await market.connect(owner).setMimeTypeFee(mimeTypeFee.mul(2));
+        let fetchedMimeFee = await market.connect(owner).mimeTypeFee();
+        expect(Number(fetchedMimeFee)).to.equal(Number(mimeTypeFee.mul(2)));
+
+        await market.connect(owner).setMimeTypeFee(mimeTypeFee);
+        fetchedMimeFee = await market.connect(owner).mimeTypeFee();
+        expect(Number(fetchedMimeFee)).to.equal(Number(mimeTypeFee));
+    });
 
     it("Should mint NFT and create market item", async () => {
         // Approve market contract
@@ -55,7 +79,7 @@ describe.only("************ Marketplace ******************", () => {
         console.log(`\tMarket item created with itemId ${itemId}`);
 
         // Results
-        const item = await market.fetchItem(itemId);
+        const item = await marketUtil.fetchItem(itemId);
         const royaltyInfo = await nft.royaltyInfo(tokenId, 10000);
 
         // Evaluate results
@@ -74,7 +98,7 @@ describe.only("************ Marketplace ******************", () => {
 
     it("Should mint batch of NFTs and create market items", async () => {
         // Initial data
-        const iniItemsCreated = await market.fetchAddressItemsCreated(creatorAddress);
+        const iniItemsCreated = await marketUtil.fetchAddressItemsCreated(creatorAddress);
 
         // Create tokens
         console.log("\tcreating token...");
@@ -96,11 +120,11 @@ describe.only("************ Marketplace ******************", () => {
         console.log(`\tMarket items created with itemId ${item1Id} and ${item2Id}`);
 
         // Results
-        const item1 = await market.fetchItem(item1Id);
-        const item2 = await market.fetchItem(item2Id);
+        const item1 = await marketUtil.fetchItem(item1Id);
+        const item2 = await marketUtil.fetchItem(item2Id);
         const royaltyInfo1 = await nft.royaltyInfo(token1Id, 10000);
         const royaltyInfo2 = await nft.royaltyInfo(token2Id, 10000);
-        const endItemsCreated = await market.fetchAddressItemsCreated(creatorAddress);
+        const endItemsCreated = await marketUtil.fetchAddressItemsCreated(creatorAddress);
 
         // Evaluate results
         expect(royaltyInfo1.receiver).to.equal(artistAddress);
@@ -152,7 +176,7 @@ describe.only("************ Marketplace ******************", () => {
         const itemId = receipt2.events[1].args[0].toNumber();
 
         // Results
-        const item = await market.fetchItem(itemId);
+        const item = await marketUtil.fetchItem(itemId);
 
         // Evaluate results
         expect(Number(item.itemId)).to.equal(itemId);
@@ -186,11 +210,11 @@ describe.only("************ Marketplace ******************", () => {
         console.log(`\tMarket item created with id ${itemId}.`);
 
         // Initial data
-        const inicreatorPositions = await market.fetchAddressPositions(creatorAddress);
+        const inicreatorPositions = await marketUtil.fetchAddressPositions(creatorAddress);
         const inicreatorTokenPosition = inicreatorPositions.at(-1);
-        const iniArtistPositions = await market.fetchAddressPositions(artistAddress);
-        const iniItem = await market.fetchItem(itemId);
-        const iniPositions = await market.fetchPositionsByState(0);
+        const iniArtistPositions = await marketUtil.fetchAddressPositions(artistAddress);
+        const iniItem = await marketUtil.fetchItem(itemId);
+        const iniPositions = await marketUtil.fetchPositionsByState(0);
 
         // Transfers tokens outside the marketplace
         console.log("\tcreator tansfering tokens to artist...");
@@ -203,12 +227,12 @@ describe.only("************ Marketplace ******************", () => {
         console.log("\tTokens registered.");
 
         // Final data
-        const endcreatorPositions = await market.fetchAddressPositions(creatorAddress);
+        const endcreatorPositions = await marketUtil.fetchAddressPositions(creatorAddress);
         const endcreatorTokenPosition = endcreatorPositions.at(-1);
-        const endArtistPositions = await market.fetchAddressPositions(artistAddress);
+        const endArtistPositions = await marketUtil.fetchAddressPositions(artistAddress);
         const endArtistTokenPosition = endArtistPositions.at(-1);
-        const endItem = await market.fetchItem(itemId);
-        const endPositions = await market.fetchPositionsByState(0);
+        const endItem = await marketUtil.fetchItem(itemId);
+        const endPositions = await marketUtil.fetchPositionsByState(0);
 
         // Evaluate results
         expect(endPositions.length - iniPositions.length).to.equal(1);
@@ -248,7 +272,7 @@ describe.only("************ Marketplace ******************", () => {
         const tx2 = await market.connect(creator).createItem(tokenId, { value: mimeTypeFee });
         const receipt2 = await tx2.wait();
         const item1Id = receipt2.events[1].args[0].toNumber();
-        const item1 = await market.fetchItem(item1Id);
+        const item1 = await marketUtil.fetchItem(item1Id);
 
         expect(Number(item1.itemId)).to.equal(item1Id);
 
@@ -282,8 +306,8 @@ describe.only("************ Marketplace ******************", () => {
         const receipt3 = await tx3.wait();
         const item2Id = receipt3.events[2].args[0].toNumber();
         const item3Id = receipt3.events[4].args[0].toNumber();
-        const item2 = await market.fetchItem(item2Id);
-        const item3 = await market.fetchItem(item3Id);
+        const item2 = await marketUtil.fetchItem(item2Id);
+        const item3 = await marketUtil.fetchItem(item3Id);
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
 
         expect(Number(item2.itemId)).to.equal(item2Id);

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 import "../../@openzeppelin/contracts/utils/Counters.sol";
-import "../interface/ISqwidMarketplace.sol";
+import "../interface/ISqwidMarketplaceUtil.sol";
 
 /**
  * Sample contract that migrated all data from an active market contract.
@@ -76,8 +76,8 @@ contract MarketMigrationSample {
     mapping(uint256 => RaffleData) public idToRaffleData;
     mapping(uint256 => LoanData) public idToLoanData;
 
-    constructor(address oldMarketplace) {
-        _getInitialData(oldMarketplace);
+    constructor(ISqwidMarketplaceUtil marketplaceUtil) {
+        _getInitialData(marketplaceUtil);
     }
 
     function fetchItemSales(uint256 itemId) external view returns (ItemSale[] memory) {
@@ -126,13 +126,12 @@ contract MarketMigrationSample {
         return (addresses, amounts);
     }
 
-    function _getInitialData(address oldMarketplace) private {
+    function _getInitialData(ISqwidMarketplaceUtil marketplaceUtil) private {
         // Items
-        ISqwidMarketplace.ItemResponse[] memory items = ISqwidMarketplace(oldMarketplace)
-            .fetchAllItems();
+        ISqwidMarketplaceUtil.ItemResponse[] memory items = marketplaceUtil.fetchAllItems();
 
         for (uint256 i; i < items.length; i++) {
-            ISqwidMarketplace.ItemResponse memory itemOld = items[i];
+            ISqwidMarketplaceUtil.ItemResponse memory itemOld = items[i];
 
             idToItem[itemOld.itemId].itemId = itemOld.itemId;
             idToItem[itemOld.itemId].nftContract = itemOld.nftContract;
@@ -149,12 +148,11 @@ contract MarketMigrationSample {
         }
 
         // Available positions
-        ISqwidMarketplace.PositionResponse[] memory availablePositions = ISqwidMarketplace(
-            oldMarketplace
-        ).fetchPositionsByState(ISqwidMarketplace.PositionState.Available);
+        ISqwidMarketplaceUtil.PositionResponse[] memory availablePositions = marketplaceUtil
+            .fetchPositionsByState(ISqwidMarketplace.PositionState.Available);
 
         for (uint256 i; i < availablePositions.length; i++) {
-            ISqwidMarketplace.PositionResponse memory positionOld = availablePositions[i];
+            ISqwidMarketplaceUtil.PositionResponse memory positionOld = availablePositions[i];
             idToPosition[positionOld.positionId] = _mapPosition(
                 positionOld,
                 PositionState.Available
@@ -162,12 +160,11 @@ contract MarketMigrationSample {
         }
 
         // Regular sale positions
-        ISqwidMarketplace.PositionResponse[] memory salePositions = ISqwidMarketplace(
-            oldMarketplace
-        ).fetchPositionsByState(ISqwidMarketplace.PositionState.RegularSale);
+        ISqwidMarketplaceUtil.PositionResponse[] memory salePositions = marketplaceUtil
+            .fetchPositionsByState(ISqwidMarketplace.PositionState.RegularSale);
 
         for (uint256 i; i < salePositions.length; i++) {
-            ISqwidMarketplace.PositionResponse memory positionOld = salePositions[i];
+            ISqwidMarketplaceUtil.PositionResponse memory positionOld = salePositions[i];
             idToPosition[positionOld.positionId] = _mapPosition(
                 positionOld,
                 PositionState.RegularSale
@@ -175,11 +172,11 @@ contract MarketMigrationSample {
         }
 
         // Auction positions
-        ISqwidMarketplace.PositionResponse[] memory auctions = ISqwidMarketplace(oldMarketplace)
+        ISqwidMarketplaceUtil.PositionResponse[] memory auctions = marketplaceUtil
             .fetchPositionsByState(ISqwidMarketplace.PositionState.Auction);
 
         for (uint256 i; i < auctions.length; i++) {
-            ISqwidMarketplace.PositionResponse memory positionOld = auctions[i];
+            ISqwidMarketplaceUtil.PositionResponse memory positionOld = auctions[i];
             idToPosition[positionOld.positionId] = _mapPosition(positionOld, PositionState.Auction);
 
             idToAuctionData[positionOld.positionId].deadline = positionOld.auctionData.deadline;
@@ -188,9 +185,8 @@ contract MarketMigrationSample {
                 .auctionData
                 .highestBidder;
 
-            (address[] memory addresses, uint256[] memory amounts) = ISqwidMarketplace(
-                oldMarketplace
-            ).fetchAuctionBids(positionOld.positionId);
+            (address[] memory addresses, uint256[] memory amounts) = marketplaceUtil
+                .fetchAuctionBids(positionOld.positionId);
             idToAuctionData[positionOld.positionId].totalAddresses = addresses.length;
             for (uint256 j; j < addresses.length; j++) {
                 idToAuctionData[positionOld.positionId].indexToAddress[j] = addresses[j];
@@ -199,11 +195,11 @@ contract MarketMigrationSample {
         }
 
         // Raffle positions
-        ISqwidMarketplace.PositionResponse[] memory raffles = ISqwidMarketplace(oldMarketplace)
+        ISqwidMarketplaceUtil.PositionResponse[] memory raffles = marketplaceUtil
             .fetchPositionsByState(ISqwidMarketplace.PositionState.Raffle);
 
         for (uint256 i; i < raffles.length; i++) {
-            ISqwidMarketplace.PositionResponse memory positionOld = raffles[i];
+            ISqwidMarketplaceUtil.PositionResponse memory positionOld = raffles[i];
             idToPosition[positionOld.positionId] = _mapPosition(positionOld, PositionState.Raffle);
 
             idToRaffleData[positionOld.positionId].deadline = positionOld.raffleData.deadline;
@@ -212,9 +208,8 @@ contract MarketMigrationSample {
                 .raffleData
                 .totalAddresses;
 
-            (address[] memory addresses, uint256[] memory amounts) = ISqwidMarketplace(
-                oldMarketplace
-            ).fetchRaffleAmounts(positionOld.positionId);
+            (address[] memory addresses, uint256[] memory amounts) = marketplaceUtil
+                .fetchRaffleEntries(positionOld.positionId);
             for (uint256 j; j < addresses.length; j++) {
                 idToRaffleData[positionOld.positionId].indexToAddress[j] = addresses[j];
                 idToRaffleData[positionOld.positionId].addressToAmount[addresses[j]] = amounts[j];
@@ -222,11 +217,11 @@ contract MarketMigrationSample {
         }
 
         // Loan positions
-        ISqwidMarketplace.PositionResponse[] memory loans = ISqwidMarketplace(oldMarketplace)
+        ISqwidMarketplaceUtil.PositionResponse[] memory loans = marketplaceUtil
             .fetchPositionsByState(ISqwidMarketplace.PositionState.Loan);
 
         for (uint256 i; i < loans.length; i++) {
-            ISqwidMarketplace.PositionResponse memory positionOld = loans[i];
+            ISqwidMarketplaceUtil.PositionResponse memory positionOld = loans[i];
             idToPosition[positionOld.positionId] = _mapPosition(positionOld, PositionState.Loan);
             idToLoanData[positionOld.positionId] = LoanData(
                 positionOld.loanData.loanAmount,
@@ -239,7 +234,7 @@ contract MarketMigrationSample {
     }
 
     function _mapPosition(
-        ISqwidMarketplace.PositionResponse memory positionOld,
+        ISqwidMarketplaceUtil.PositionResponse memory positionOld,
         PositionState state
     ) private pure returns (Position memory) {
         return

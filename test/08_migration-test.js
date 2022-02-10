@@ -1,13 +1,19 @@
 const { expect, assert } = require("chai");
 
 describe("************ Migration ******************", () => {
-    let marketContractAddress, market, owner, migration;
-
     before(async () => {
         marketContractAddress = config.contracts.market;
+        marketUtilAddress = config.contracts.util;
 
-        if (!marketContractAddress || marketContractAddress == "") {
-            assert.fail("Market contract has to be deployed and contain data to run this test.");
+        if (
+            !marketContractAddress ||
+            marketContractAddress == "" ||
+            !marketUtilAddress ||
+            marketUtilAddress == ""
+        ) {
+            assert.fail(
+                "Market contract and/or Util contract have to be deployed and contain data to run this test."
+            );
         }
 
         owner = await reef.getSignerByName("account1");
@@ -15,15 +21,18 @@ describe("************ Migration ******************", () => {
         const Market = await reef.getContractFactory("SqwidMarketplace", owner);
         market = await Market.attach(marketContractAddress);
 
+        const MarketUtil = await reef.getContractFactory("SqwidMarketplaceUtil", owner);
+        marketUtil = await MarketUtil.attach(marketUtilAddress);
+
         console.log("\tdeploying migration contract...");
         const Migration = await reef.getContractFactory("MarketMigrationSample", owner);
-        migration = await Migration.deploy(marketContractAddress);
+        migration = await Migration.deploy(marketUtilAddress);
         await migration.deployed();
         console.log(`\tMigration contact deployed ${migration.address}`);
     });
 
     it("Should migrate data to new market contact", async () => {
-        const itemsOld = await market.fetchAllItems();
+        const itemsOld = await marketUtil.fetchAllItems();
         itemsOld.forEach(async (itemOld) => {
             const itemNew = await migration.idToItem(itemOld.itemId);
             const sales = await migration.fetchItemSales(itemOld.itemId);
@@ -41,7 +50,7 @@ describe("************ Migration ******************", () => {
             });
         });
 
-        const availablePositions = await market.fetchPositionsByState(0);
+        const availablePositions = await marketUtil.fetchPositionsByState(0);
         availablePositions.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
             expect(Number(position.positionId)).to.equal(Number(positionOld.positionId));
@@ -53,7 +62,7 @@ describe("************ Migration ******************", () => {
             expect(position.state).to.equal(positionOld.state);
         });
 
-        const onSale = await market.fetchPositionsByState(1);
+        const onSale = await marketUtil.fetchPositionsByState(1);
         onSale.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
             expect(Number(position.positionId)).to.equal(Number(positionOld.positionId));
@@ -65,11 +74,11 @@ describe("************ Migration ******************", () => {
             expect(position.state).to.equal(positionOld.state);
         });
 
-        const auctions = await market.fetchPositionsByState(2);
+        const auctions = await marketUtil.fetchPositionsByState(2);
         auctions.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
             const auctionData = await migration.idToAuctionData(positionOld.positionId);
-            const [auctionAddrOld, auctionAmountsOld] = await market.fetchAuctionBids(
+            const [auctionAddrOld, auctionAmountsOld] = await marketUtil.fetchAuctionBids(
                 positionOld.positionId
             );
             const [auctionAddrNew, auctionAmountsNew] = await migration.fetchAuctionBids(
@@ -95,11 +104,11 @@ describe("************ Migration ******************", () => {
             });
         });
 
-        const raffles = await market.fetchPositionsByState(3);
+        const raffles = await marketUtil.fetchPositionsByState(3);
         raffles.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
             const raffleData = await migration.idToRaffleData(positionOld.positionId);
-            const [raffleAddrOld, raffleAmountsOld] = await market.fetchRaffleAmounts(
+            const [raffleAddrOld, raffleAmountsOld] = await marketUtil.fetchRaffleAmounts(
                 positionOld.positionId
             );
             const [raffleAddrNew, raffleAmountsNew] = await migration.fetchRaffleAmounts(
@@ -124,7 +133,7 @@ describe("************ Migration ******************", () => {
             });
         });
 
-        const loans = await market.fetchPositionsByState(4);
+        const loans = await marketUtil.fetchPositionsByState(4);
         loans.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
             const loanData = await migration.idToLoanData(positionOld.positionId);

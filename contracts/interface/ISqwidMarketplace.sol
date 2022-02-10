@@ -62,33 +62,12 @@ interface ISqwidMarketplace {
         address lender;
     }
 
-    struct ItemResponse {
-        uint256 itemId;
-        address nftContract;
-        uint256 tokenId;
-        address creator;
-        ItemSale[] sales;
-        Position[] positions;
-    }
-
-    struct PositionResponse {
-        uint256 positionId;
-        Item item;
-        address payable owner;
-        uint256 amount;
-        uint256 price;
-        uint256 marketFee;
-        PositionState state;
-        AuctionDataResponse auctionData;
-        RaffleDataResponse raffleData;
-        LoanData loanData;
-    }
-
     struct AuctionDataResponse {
         uint256 deadline;
         uint256 minBid;
         address highestBidder;
         uint256 highestBid;
+        uint256 totalAddresses;
     }
 
     struct RaffleDataResponse {
@@ -97,22 +76,32 @@ interface ISqwidMarketplace {
         uint256 totalAddresses;
     }
 
-    function fetchAllItems() external view returns (ItemResponse[] memory);
+    function currentItemId() external view returns (uint256);
 
-    function fetchAllAvailablePositions() external view returns (PositionResponse[] memory);
+    function currentPositionId() external view returns (uint256);
 
-    function fetchPositionsByState(PositionState state)
+    function fetchItem(uint256 itemId) external view returns (Item memory);
+
+    function fetchPosition(uint256 positionId) external view returns (Position memory);
+
+    function fetchStateCount(PositionState state) external view returns (uint256);
+
+    function fetchAuctionData(uint256 positionId)
         external
         view
-        returns (PositionResponse[] memory);
+        returns (AuctionDataResponse memory);
 
-    function fetchAuctionBids(uint256 positionId)
+    function fetchBid(uint256 positionId, uint256 bidIndex)
         external
         view
-        returns (address[] memory, uint256[] memory);
+        returns (address, uint256);
 
-    function fetchRaffleAmounts(uint256 positionId)
+    function fetchRaffleData(uint256 positionId) external view returns (RaffleDataResponse memory);
+
+    function fetchRaffleEntry(uint256 positionId, uint256 entryIndex)
         external
         view
-        returns (address[] memory, uint256[] memory);
+        returns (address, uint256);
+
+    function fetchLoanData(uint256 positionId) external view returns (LoanData memory);
 }

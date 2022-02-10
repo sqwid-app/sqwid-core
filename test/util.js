@@ -41,10 +41,11 @@ exports.logEvents = async (promise) => {
 
 exports.delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
-exports.getMainContracts = async (marketFee, owner) => {
+exports.getMainContracts = async (marketFee, mimeTypeFee, owner) => {
     let nftContractAddress = config.contracts.nft;
     let marketContractAddress = config.contracts.market;
-    let nft, market;
+    let utilContractAddress = config.contracts.util;
+    let nft, market, marketUtil;
 
     if (!nftContractAddress || nftContractAddress == "") {
         // Deploy SqwidERC1155 contract
@@ -63,7 +64,7 @@ exports.getMainContracts = async (marketFee, owner) => {
         // Deploy SqwidMarketplace contract
         console.log("\tdeploying Market contract...");
         const Market = await reef.getContractFactory("SqwidMarketplace", owner);
-        market = await Market.deploy(marketFee, nftContractAddress);
+        market = await Market.deploy(marketFee, mimeTypeFee, nftContractAddress);
         await market.deployed();
         marketContractAddress = market.address;
     } else {
@@ -74,7 +75,22 @@ exports.getMainContracts = async (marketFee, owner) => {
     }
     console.log(`\tMarket contract deployed in ${marketContractAddress}`);
 
-    return { nft, market };
+    if (!utilContractAddress || utilContractAddress == "") {
+        // Deploy SqwidMarketplace contract
+        console.log("\tdeploying Util contract...");
+        const MarketUtil = await reef.getContractFactory("SqwidMarketplaceUtil", owner);
+        marketUtil = await MarketUtil.deploy(marketContractAddress);
+        await marketUtil.deployed();
+        utilContractAddress = marketUtil.address;
+    } else {
+        // Get deployed contract
+        const MarketUtil = await reef.getContractFactory("SqwidMarketplaceUtil", owner);
+        marketUtil = await MarketUtil.attach(utilContractAddress);
+        await marketUtil.setMarketContractAddress(marketContractAddress);
+    }
+    console.log(`\tUtil contract deployed in ${utilContractAddress}`);
+
+    return { nft, market, marketUtil };
 };
 
 exports.getDummyNfts = async () => {

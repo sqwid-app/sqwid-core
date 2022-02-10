@@ -4,8 +4,6 @@ pragma solidity ^0.8.4;
 import "../../@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../../@openzeppelin/contracts/access/Ownable.sol";
 
-import "hardhat/console.sol";
-
 contract NftMimeTypes is Ownable {
     mapping(string => bool) public validMimeTypes;
     mapping(uint256 => string) private _mimeTypes;

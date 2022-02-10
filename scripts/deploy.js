@@ -31,9 +31,16 @@ async function main() {
     // Deploy SqwidMarketplace
     const Marketplace = await hre.reef.getContractFactory("SqwidMarketplace", ownerAccount);
     const marketFee = 250; // 2.5%
-    const marketplace = await Marketplace.deploy(marketFee, nft.address);
+    const mimeTypeFee = ethers.utils.parseUnits("10", "ether");
+    const marketplace = await Marketplace.deploy(marketFee, mimeTypeFee, nft.address);
     await marketplace.deployed();
     console.log(`SqwidMarketplace deployed in ${marketplace.address}`);
+
+    // Deploy SqwidMarketplaceUtil
+    const MarketUtil = await hre.reef.getContractFactory("SqwidMarketplaceUtil", ownerAccount);
+    const marketUtil = await MarketUtil.deploy(marketplace.address);
+    await marketUtil.deployed();
+    console.log(`SqwidMarketplaceUtil deployed in ${marketUtil.address}`);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

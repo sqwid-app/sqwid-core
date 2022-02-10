@@ -82,33 +82,12 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         address lender;
     }
 
-    struct ItemResponse {
-        uint256 itemId;
-        address nftContract;
-        uint256 tokenId;
-        address creator;
-        ItemSale[] sales;
-        Position[] positions;
-    }
-
-    struct PositionResponse {
-        uint256 positionId;
-        Item item;
-        address payable owner;
-        uint256 amount;
-        uint256 price;
-        uint256 marketFee;
-        PositionState state;
-        AuctionDataResponse auctionData;
-        RaffleDataResponse raffleData;
-        LoanData loanData;
-    }
-
     struct AuctionDataResponse {
         uint256 deadline;
         uint256 minBid;
         address highestBidder;
         uint256 highestBid;
+        uint256 totalAddresses;
     }
 
     struct RaffleDataResponse {
@@ -127,9 +106,9 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     mapping(uint256 => LoanData) private _idToLoanData;
 
     mapping(address => uint256) public addressBalance;
-    uint256 public marketFee;
-    uint256 public mimeTypeFee = 10; // TODO
-    address public nftContractAddress;
+    mapping(PositionState => uint256) public marketFees;
+    uint256 public mimeTypeFee;
+    ISqwidERC1155 public sqwidERC1155;
 
     event ItemCreated(
         uint256 indexed itemId,
@@ -160,17 +139,14 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 amount
     );
 
-    event MarketFeeChanged(uint256 prevValue, uint256 newValue);
+    event MarketFeeChanged(uint256 prevValue, uint256 newValue, PositionState typeFee);
+
+    event MimeTypeFeeChanged(uint256 prevValue, uint256 newValue);
 
     event RoyaltiesPaid(uint256 indexed tokenId, uint256 value);
 
     modifier itemExists(uint256 itemId) {
         require(_idToItem[itemId].itemId > 0, "SqwidMarket: Item not found");
-        _;
-    }
-
-    modifier positionExists(uint256 positionId) {
-        require(_idToPosition[positionId].positionId > 0, "SqwidMarket: Position not found");
         _;
     }
 
@@ -183,30 +159,47 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(uint256 marketFee_, address nftContractAddress_) {
-        marketFee = marketFee_;
-        nftContractAddress = nftContractAddress_;
+    constructor(
+        uint256 marketFee_,
+        uint256 mimeTypeFee_,
+        ISqwidERC1155 sqwidERC1155_
+    ) {
+        marketFees[PositionState.RegularSale] = marketFee_;
+        marketFees[PositionState.Auction] = marketFee_;
+        marketFees[PositionState.Raffle] = marketFee_;
+        marketFees[PositionState.Loan] = marketFee_;
+        mimeTypeFee = mimeTypeFee_;
+        sqwidERC1155 = sqwidERC1155_;
     }
 
     /**
      * Sets market fee percentage with two decimal points.
      * E.g. 250 --> 2.5%
      */
-    function setMarketFee(uint256 marketFee_) external onlyOwner {
+    function setMarketFee(uint16 marketFee_, PositionState typeFee) external onlyOwner {
         require(marketFee_ <= 1000, "SqwidMarket: Fee higher than 1000");
-        uint256 prevMarketFee;
-        prevMarketFee = marketFee;
-        marketFee = marketFee_;
+        require(typeFee != PositionState.Available, "SqwidMarket: Invalid fee type");
+        uint256 prevMarketFee = marketFees[typeFee];
+        marketFees[typeFee] = marketFee_;
 
-        emit MarketFeeChanged(prevMarketFee, marketFee_);
+        emit MarketFeeChanged(prevMarketFee, marketFee_, typeFee);
+    }
+
+    /**
+     * Sets MIME type fee.
+     */
+    function setMimeTypeFee(uint256 mimeTypeFee_) external onlyOwner {
+        uint256 prevMimeTypeFee = mimeTypeFee;
+        mimeTypeFee = mimeTypeFee_;
+
+        emit MimeTypeFeeChanged(prevMimeTypeFee, mimeTypeFee_);
     }
 
     /**
      * Sets new NFT contract address.
      */
-    function setNftContractAddress(address nftContractAddress_) external onlyOwner {
-        require(nftContractAddress_ != address(0), "SqwidMarket: Cannot set to 0 address");
-        nftContractAddress = nftContractAddress_;
+    function setNftContractAddress(ISqwidERC1155 sqwidERC1155_) external onlyOwner {
+        sqwidERC1155 = sqwidERC1155_;
     }
 
     /**
@@ -229,7 +222,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         address royaltyRecipient,
         uint256 royaltyValue
     ) external payable {
-        uint256 tokenId = ISqwidERC1155(nftContractAddress).mint(
+        uint256 tokenId = sqwidERC1155.mint(
             msg.sender,
             amount,
             tokenURI,
@@ -256,12 +249,9 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
                 videoTypeCount++;
             }
         }
-        require(
-            msg.value >= mimeTypeFee * videoTypeCount * 1e18,
-            "SqwidMarket: MIME type fee not paid"
-        );
+        require(msg.value >= mimeTypeFee * videoTypeCount, "SqwidMarket: MIME type fee not paid");
 
-        uint256[] memory tokenIds = ISqwidERC1155(nftContractAddress).mintBatch(
+        uint256[] memory tokenIds = sqwidERC1155.mintBatch(
             msg.sender,
             amounts,
             tokenURIs,
@@ -280,20 +270,20 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
      */
     function createItem(uint256 tokenId) public payable returns (uint256) {
         require(
-            ISqwidERC1155(nftContractAddress).balanceOf(msg.sender, tokenId) > 0,
+            sqwidERC1155.balanceOf(msg.sender, tokenId) > 0,
             "SqwidMarket: Address balance too low"
         );
-        string memory mimeType = ISqwidERC1155(nftContractAddress).mimeType(tokenId);
+        string memory mimeType = sqwidERC1155.mimeType(tokenId);
         if (keccak256(bytes(mimeType)) == keccak256("video")) {
-            require(msg.value >= mimeTypeFee * 1e18, "SqwidMarket: MIME type fee not paid");
-            addressBalance[owner()] += mimeTypeFee * 1e18;
+            require(msg.value >= mimeTypeFee, "SqwidMarket: MIME type fee not paid");
+            addressBalance[owner()] += mimeTypeFee;
         }
 
         // Check if item already exists
         uint256 totalItemCount = _itemIds.current();
         for (uint256 i; i < totalItemCount; i++) {
             if (
-                _idToItem[i + 1].nftContract == nftContractAddress &&
+                _idToItem[i + 1].nftContract == address(sqwidERC1155) &&
                 _idToItem[i + 1].tokenId == tokenId
             ) {
                 revert("SqwidMarket: Item already exists");
@@ -304,193 +294,16 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _itemIds.increment();
         uint256 itemId = _itemIds.current();
         _idToItem[itemId].itemId = itemId;
-        _idToItem[itemId].nftContract = nftContractAddress;
+        _idToItem[itemId].nftContract = address(sqwidERC1155);
         _idToItem[itemId].tokenId = tokenId;
         _idToItem[itemId].creator = msg.sender;
         _idToItem[itemId].positionCount = 0;
 
         _updateAvailablePosition(itemId, msg.sender);
 
-        emit ItemCreated(itemId, nftContractAddress, tokenId, msg.sender);
+        emit ItemCreated(itemId, address(sqwidERC1155), tokenId, msg.sender);
 
         return itemId;
-    }
-
-    /**
-     * Returns item and all its item positions.
-     */
-    function fetchItem(uint256 itemId)
-        public
-        view
-        itemExists(itemId)
-        returns (ItemResponse memory)
-    {
-        return
-            ItemResponse(
-                itemId,
-                _idToItem[itemId].nftContract,
-                _idToItem[itemId].tokenId,
-                _idToItem[itemId].creator,
-                _idToItem[itemId].sales,
-                _fetchPositionsByItemId(itemId)
-            );
-    }
-
-    /**
-     * Returns all items and all its item positions.
-     */
-    function fetchAllItems() public view returns (ItemResponse[] memory) {
-        uint256 totalItemCount = _itemIds.current();
-
-        // Initialize array
-        ItemResponse[] memory items = new ItemResponse[](totalItemCount);
-
-        // Fill array
-        uint256 currentIndex = 0;
-        for (uint256 i; i < totalItemCount; i++) {
-            items[currentIndex] = fetchItem(i + 1);
-            currentIndex += 1;
-        }
-
-        return items;
-    }
-
-    /**
-     * Returns items created by an address.
-     */
-    function fetchAddressItemsCreated(address targetAddress)
-        public
-        view
-        returns (ItemResponse[] memory)
-    {
-        // Get total number of items created by target address
-        uint256 totalItemCount = _itemIds.current();
-        uint256 itemCount = 0;
-        for (uint256 i; i < totalItemCount; i++) {
-            if (_idToItem[i + 1].creator == targetAddress) {
-                itemCount += 1;
-            }
-        }
-
-        // Initialize array
-        ItemResponse[] memory items = new ItemResponse[](itemCount);
-
-        // Fill array
-        uint256 currentIndex = 0;
-        for (uint256 i; i < totalItemCount; i++) {
-            if (_idToItem[i + 1].creator == targetAddress) {
-                items[currentIndex] = fetchItem(i + 1);
-                currentIndex += 1;
-            }
-        }
-
-        return items;
-    }
-
-    /**
-     * Returns item position.
-     */
-    function fetchPosition(uint256 positionId)
-        public
-        view
-        positionExists(positionId)
-        returns (PositionResponse memory)
-    {
-        AuctionDataResponse memory auctionData;
-        RaffleDataResponse memory raffleData;
-        LoanData memory loanData;
-        Item memory item = _idToItem[_idToPosition[positionId].itemId];
-        uint256 amount = _idToPosition[positionId].amount;
-
-        if (_idToPosition[positionId].state == PositionState.Available) {
-            amount = ISqwidERC1155(item.nftContract).balanceOf(
-                _idToPosition[positionId].owner,
-                item.tokenId
-            );
-        } else if (_idToPosition[positionId].state == PositionState.Auction) {
-            auctionData.deadline = _idToAuctionData[positionId].deadline;
-            auctionData.minBid = _idToAuctionData[positionId].minBid;
-            auctionData.highestBidder = _idToAuctionData[positionId].highestBidder;
-            auctionData.highestBid = _idToAuctionData[positionId].highestBid;
-        } else if (_idToPosition[positionId].state == PositionState.Raffle) {
-            raffleData.deadline = _idToRaffleData[positionId].deadline;
-            raffleData.totalValue = _idToRaffleData[positionId].totalValue;
-            raffleData.totalAddresses = _idToRaffleData[positionId].totalAddresses;
-        } else if (_idToPosition[positionId].state == PositionState.Loan) {
-            loanData = _idToLoanData[positionId];
-        }
-
-        return
-            PositionResponse(
-                positionId,
-                item,
-                _idToPosition[positionId].owner,
-                amount,
-                _idToPosition[positionId].price,
-                _idToPosition[positionId].marketFee,
-                _idToPosition[positionId].state,
-                auctionData,
-                raffleData,
-                loanData
-            );
-    }
-
-    /**
-     * Returns items positions from an address.
-     */
-    function fetchAddressPositions(address targetAddress)
-        public
-        view
-        returns (PositionResponse[] memory)
-    {
-        // Get total number of items on sale by target address
-        uint256 totalPositionCount = _positionIds.current();
-        uint256 positionCount = 0;
-        uint256 currentIndex = 0;
-        for (uint256 i; i < totalPositionCount; i++) {
-            if (_idToPosition[i + 1].owner == targetAddress) {
-                positionCount += 1;
-            }
-        }
-
-        // Initialize array
-        PositionResponse[] memory positions = new PositionResponse[](positionCount);
-
-        // Fill array
-        for (uint256 i; i < totalPositionCount; i++) {
-            if (_idToPosition[i + 1].owner == targetAddress) {
-                positions[currentIndex] = fetchPosition(i + 1);
-                currentIndex += 1;
-            }
-        }
-
-        return positions;
-    }
-
-    /**
-     * Returns market item positions for a given state.
-     */
-    function fetchPositionsByState(PositionState state)
-        external
-        view
-        returns (PositionResponse[] memory)
-    {
-        uint256 currentIndex = 0;
-        uint256 stateCount = _stateToCounter[state].current();
-
-        // Initialize array
-        PositionResponse[] memory positions = new PositionResponse[](stateCount);
-
-        // Fill array
-        uint256 totalPositionCount = _positionIds.current();
-        for (uint256 i; i < totalPositionCount; i++) {
-            if (_idToPosition[i + 1].positionId > 0 && _idToPosition[i + 1].state == state) {
-                positions[currentIndex] = fetchPosition(i + 1);
-                currentIndex += 1;
-            }
-        }
-
-        return positions;
     }
 
     /////////////////////////// AVAILABLE ////////////////////////////////////
@@ -546,6 +359,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         // Map new Position
         _positionIds.increment();
         uint256 positionId = _positionIds.current();
+        uint256 marketFee = marketFees[PositionState.RegularSale];
         _idToPosition[positionId] = Position(
             positionId,
             itemId,
@@ -674,6 +488,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         // Map new Position
         _positionIds.increment();
         uint256 positionId = _positionIds.current();
+        uint256 marketFee = marketFees[PositionState.Auction];
         _idToPosition[positionId] = Position(
             positionId,
             itemId,
@@ -814,31 +629,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _updateAvailablePosition(itemId, receiver);
     }
 
-    /**
-     * Returns addresses and bids of an active auction.
-     */
-    function fetchAuctionBids(uint256 positionId)
-        external
-        view
-        positionInState(positionId, PositionState.Auction)
-        returns (address[] memory, uint256[] memory)
-    {
-        uint256 totalAddresses = _idToAuctionData[positionId].totalAddresses;
-
-        // Initialize array
-        address[] memory addresses = new address[](totalAddresses);
-        uint256[] memory amounts = new uint256[](totalAddresses);
-
-        // Fill arrays
-        for (uint256 i; i < totalAddresses; i++) {
-            address currAddress = _idToAuctionData[positionId].indexToAddress[i];
-            addresses[i] = currAddress;
-            amounts[i] = _idToAuctionData[positionId].addressToAmount[currAddress];
-        }
-
-        return (addresses, amounts);
-    }
-
     /////////////////////////// RAFFLE ////////////////////////////////////
 
     /**
@@ -871,6 +661,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         // Map new Position
         _positionIds.increment();
         uint256 positionId = _positionIds.current();
+        uint256 marketFee = marketFees[PositionState.Raffle];
         _idToPosition[positionId] = Position(
             positionId,
             itemId,
@@ -997,31 +788,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _updateAvailablePosition(itemId, receiver);
     }
 
-    /**
-     * Returns addresses and amounts of an active raffle.
-     */
-    function fetchRaffleAmounts(uint256 positionId)
-        external
-        view
-        positionInState(positionId, PositionState.Raffle)
-        returns (address[] memory, uint256[] memory)
-    {
-        uint256 totalAddresses = _idToRaffleData[positionId].totalAddresses;
-
-        // Initialize array
-        address[] memory addresses = new address[](totalAddresses);
-        uint256[] memory amounts = new uint256[](totalAddresses);
-
-        // Fill arrays
-        for (uint256 i; i < totalAddresses; i++) {
-            address currAddress = _idToRaffleData[positionId].indexToAddress[i];
-            addresses[i] = currAddress;
-            amounts[i] = _idToRaffleData[positionId].addressToAmount[currAddress];
-        }
-
-        return (addresses, amounts);
-    }
-
     /////////////////////////// LOAN ////////////////////////////////////
 
     /**
@@ -1059,6 +825,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         // Map new Position
         _positionIds.increment();
         uint256 positionId = _positionIds.current();
+        uint256 marketFee = marketFees[PositionState.Loan];
         _idToPosition[positionId] = Position(
             positionId,
             itemId,
@@ -1230,6 +997,74 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _updateAvailablePosition(itemId, msg.sender);
     }
 
+    /////////////////////////// GETTERS ////////////////////////////////////
+
+    function currentItemId() external view returns (uint256) {
+        return _itemIds.current();
+    }
+
+    function currentPositionId() external view returns (uint256) {
+        return _positionIds.current();
+    }
+
+    function fetchItem(uint256 itemId) external view returns (Item memory) {
+        return _idToItem[itemId];
+    }
+
+    function fetchPosition(uint256 positionId) external view returns (Position memory) {
+        return _idToPosition[positionId];
+    }
+
+    function fetchStateCount(PositionState state) external view returns (uint256) {
+        return _stateToCounter[state].current();
+    }
+
+    function fetchAuctionData(uint256 positionId)
+        external
+        view
+        returns (AuctionDataResponse memory)
+    {
+        return
+            AuctionDataResponse(
+                _idToAuctionData[positionId].deadline,
+                _idToAuctionData[positionId].minBid,
+                _idToAuctionData[positionId].highestBidder,
+                _idToAuctionData[positionId].highestBid,
+                _idToAuctionData[positionId].totalAddresses
+            );
+    }
+
+    function fetchBid(uint256 positionId, uint256 bidIndex)
+        external
+        view
+        returns (address, uint256)
+    {
+        address addr = _idToAuctionData[positionId].indexToAddress[bidIndex];
+        return (addr, _idToAuctionData[positionId].addressToAmount[addr]);
+    }
+
+    function fetchRaffleData(uint256 positionId) external view returns (RaffleDataResponse memory) {
+        return
+            RaffleDataResponse(
+                _idToRaffleData[positionId].deadline,
+                _idToRaffleData[positionId].totalValue,
+                _idToRaffleData[positionId].totalAddresses
+            );
+    }
+
+    function fetchRaffleEntry(uint256 positionId, uint256 entryIndex)
+        external
+        view
+        returns (address, uint256)
+    {
+        address addr = _idToRaffleData[positionId].indexToAddress[entryIndex];
+        return (addr, _idToRaffleData[positionId].addressToAmount[addr]);
+    }
+
+    function fetchLoanData(uint256 positionId) external view returns (LoanData memory) {
+        return _idToLoanData[positionId];
+    }
+
     /////////////////////////// UTILS ////////////////////////////////////
 
     /**
@@ -1367,26 +1202,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             _idToPosition[receiverPositionId].marketFee,
             _idToPosition[receiverPositionId].state
         );
-    }
-
-    /**
-     * Returns item positions of a certain item.
-     */
-    function _fetchPositionsByItemId(uint256 itemId) private view returns (Position[] memory) {
-        // Initialize array
-        Position[] memory items = new Position[](_idToItem[itemId].positionCount);
-
-        // Fill array
-        uint256 totalPositionCount = _positionIds.current();
-        uint256 currentIndex = 0;
-        for (uint256 i; i < totalPositionCount; i++) {
-            if (_idToPosition[i + 1].itemId == itemId) {
-                items[currentIndex] = _idToPosition[i + 1];
-                currentIndex++;
-            }
-        }
-
-        return items;
     }
 
     /**

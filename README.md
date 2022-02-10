@@ -4,10 +4,10 @@ This project has been created using the [Hardhat-reef-template](https://github.c
 
 ## Contract addresses
 
-|             | Marketplace contract                             | NFT contract                                     |
-| ----------- | ------------------------------------------------ | ------------------------------------------------ |
-| **Mainnet** | [0x0](https://reefscan.com/contract/0x0)         | [0x0](https://reefscan.com/contract/0x0)         |
-| **Testnet** | [0x0](https://testnet.reefscan.com/contract/0x0) | [0x0](https://testnet.reefscan.com/contract/0x0) |
+| |Marketplace contract|NFT contract|Util contract|
+|-----|-----|-----|-----|
+|**Mainnet**|[0x0](https://reefscan.com/contract/0x0)|[0x0](https://reefscan.com/contract/0x0)|[0x0](https://reefscan.com/contract/0x0)|
+|**Testnet**|[0x0](https://testnet.reefscan.com/contract/0x0)|[0x0](https://testnet.reefscan.com/contract/0x0)|[0x0](https://testnet.reefscan.com/contract/0x0)|
 
 ## Installing
 

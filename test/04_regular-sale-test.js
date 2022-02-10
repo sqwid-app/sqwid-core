@@ -2,27 +2,7 @@ const { expect } = require("chai");
 const { getMainContracts, getBalanceHelper, getBalance, throwsException } = require("./util");
 
 describe("************ Regular sale ******************", () => {
-    let market,
-        nft,
-        balanceHelper,
-        owner,
-        seller,
-        artist,
-        buyer1,
-        marketFee,
-        salePrice,
-        ownerAddress,
-        sellerAddress,
-        artistAddress,
-        buyer1Address,
-        token1Id,
-        token2Id,
-        item1Id,
-        item2Id,
-        position1Id,
-        position2Id,
-        royaltyValue,
-        maxGasFee;
+    let token1Id, token2Id, item1Id, item2Id, position1Id, position2Id;
 
     before(async () => {
         // Get accounts
@@ -40,14 +20,16 @@ describe("************ Regular sale ******************", () => {
 
         // Initialize global variables
         marketFee = 250; // 2.5%
+        mimeTypeFee = ethers.utils.parseUnits("10", "ether");
         maxGasFee = ethers.utils.parseUnits("10", "ether");
         salePrice = ethers.utils.parseUnits("50", "ether");
         royaltyValue = 1000; // 10%
 
         // Deploy or get existing contracts
-        const contracts = await getMainContracts(marketFee, owner);
+        const contracts = await getMainContracts(marketFee, mimeTypeFee, owner);
         nft = contracts.nft;
         market = contracts.market;
+        marketUtil = contracts.marketUtil;
         balanceHelper = await getBalanceHelper();
     });
 
@@ -76,8 +58,8 @@ describe("************ Regular sale ******************", () => {
         console.log(`\tPosition created with id ${position1Id}`);
 
         // Results
-        const position = await market.fetchPosition(position1Id);
-        const item = await market.fetchItem(item1Id);
+        const position = await marketUtil.fetchPosition(position1Id);
+        const item = await marketUtil.fetchItem(item1Id);
 
         // Evaluate results
         expect(Number(position.positionId)).to.equal(position1Id);
@@ -92,8 +74,8 @@ describe("************ Regular sale ******************", () => {
 
     it("Should put new nft on sale", async () => {
         // Initial data
-        const iniPositionsOnRegSale = await market.fetchPositionsByState(1);
-        const iniItems = await market.fetchAllItems();
+        const iniPositionsOnRegSale = await marketUtil.fetchPositionsByState(1);
+        const iniItems = await marketUtil.fetchAllItems();
 
         // Create token and add to the market
         console.log("\tcreating market item...");
@@ -114,10 +96,10 @@ describe("************ Regular sale ******************", () => {
         console.log(`\tPosition created with id ${position2Id}`);
 
         // Results
-        const position = await market.fetchPosition(position2Id);
-        const item = await market.fetchItem(item2Id);
-        const endPositionsOnRegSale = await market.fetchPositionsByState(1);
-        const endItems = await market.fetchAllItems();
+        const position = await marketUtil.fetchPosition(position2Id);
+        const item = await marketUtil.fetchItem(item2Id);
+        const endPositionsOnRegSale = await marketUtil.fetchPositionsByState(1);
+        const endItems = await marketUtil.fetchAllItems();
 
         // Evaluate results
         expect(Number(position.positionId)).to.equal(position2Id);
@@ -141,7 +123,7 @@ describe("************ Regular sale ******************", () => {
         const iniArtistBalance = await getBalance(balanceHelper, artistAddress, "artist");
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const iniBuyer1TokenAmount = await nft.balanceOf(buyer1Address, token1Id);
-        const iniAvailablePositions = await market.fetchPositionsByState(0);
+        const iniAvailablePositions = await marketUtil.fetchPositionsByState(0);
 
         // Buy NFT
         console.log("\tbuyer1 buying NFT from seller...");
@@ -158,8 +140,8 @@ describe("************ Regular sale ******************", () => {
         const royaltiesAmount = ethers.utils.parseUnits(royaltiesAmountRaw.toString(), "wei");
         const marketFeeAmountRaw = ((salePrice - royaltiesAmount) * marketFee) / 10000;
         const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
-        const item = await market.fetchItem(item1Id);
-        const endAvailablePositions = await market.fetchPositionsByState(0);
+        const item = await marketUtil.fetchItem(item1Id);
+        const endAvailablePositions = await marketUtil.fetchPositionsByState(0);
 
         // Evaluate results
         expect(endBuyer1TokenAmount - iniBuyer1TokenAmount).to.equal(1);
@@ -207,7 +189,7 @@ describe("************ Regular sale ******************", () => {
     it("Should allow to end sale only to seller", async () => {
         // Initial data
         const iniTokenBalance = await nft.balanceOf(sellerAddress, token2Id);
-        const iniItem = await market.fetchItem(item2Id);
+        const iniItem = await marketUtil.fetchItem(item2Id);
         const iniOnsale = iniItem.positions.filter((pos) => pos.state == 1).length;
 
         // End sale by buyer1
@@ -224,7 +206,7 @@ describe("************ Regular sale ******************", () => {
 
         // Final data
         const endTokenBalance = await nft.balanceOf(sellerAddress, token2Id);
-        const endItem = await market.fetchItem(item2Id);
+        const endItem = await marketUtil.fetchItem(item2Id);
         const endOnsale = endItem.positions.filter((pos) => pos.state == 1).length;
 
         // Evaluate results

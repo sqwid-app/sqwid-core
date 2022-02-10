@@ -2,27 +2,7 @@ const { expect, assert } = require("chai");
 const { getMainContracts, getDummyNfts, throwsException } = require("./util");
 
 describe("************ Wrapper ******************", () => {
-    let dummyERC721,
-        dummyERC721Royalties,
-        dummyERC1155,
-        sqwidNft,
-        owner,
-        user1,
-        user2,
-        user3,
-        marketFee,
-        dummyERC721Address,
-        dummyERC721RoyaltiesAddress,
-        dummyERC1155Address,
-        user1Address,
-        user2Address,
-        user3Address,
-        royaltyValue,
-        token2Amount,
-        token1Id,
-        token2Id,
-        wrappedToken1Id,
-        wrappedToken2Id;
+    let wrappedToken1Id, wrappedToken2Id;
 
     before(async () => {
         // Get accounts
@@ -39,11 +19,12 @@ describe("************ Wrapper ******************", () => {
 
         // Initialize global variables
         marketFee = 250; // 2.5%
+        mimeTypeFee = ethers.utils.parseUnits("10", "ether");
         royaltyValue = 2000; // 20%
         token2Amount = 99;
 
         // Deploy or get existing contracts
-        const contracts = await getMainContracts(marketFee, owner);
+        const contracts = await getMainContracts(marketFee, mimeTypeFee, owner);
         sqwidNft = contracts.nft;
         const dummyNftContract = await getDummyNfts();
         dummyERC721 = dummyNftContract.dummyERC721;
