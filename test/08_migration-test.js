@@ -1,37 +1,65 @@
-const { expect, assert } = require("chai");
+const { expect } = require("chai");
+const { getMainContracts, throwsException } = require("./util");
 
 describe("************ Migration ******************", () => {
     before(async () => {
-        marketContractAddress = config.contracts.market;
-        marketUtilAddress = config.contracts.util;
-
-        if (
-            !marketContractAddress ||
-            marketContractAddress == "" ||
-            !marketUtilAddress ||
-            marketUtilAddress == ""
-        ) {
-            assert.fail(
-                "Market contract and/or Util contract have to be deployed and contain data to run this test."
-            );
-        }
-
+        // Get accounts
         owner = await reef.getSignerByName("account1");
+        seller = await reef.getSignerByName("account2");
+        buyer = await reef.getSignerByName("account3");
+        artist = await reef.getSignerByName("account4");
 
-        const Market = await reef.getContractFactory("SqwidMarketplace", owner);
-        market = await Market.attach(marketContractAddress);
+        // Get accounts addresses
+        ownerAddress = await owner.getAddress();
+        sellerAddress = await seller.getAddress();
+        buyerAddress = await buyer.getAddress();
+        artistAddress = await artist.getAddress();
 
-        const MarketUtil = await reef.getContractFactory("SqwidMarketplaceUtil", owner);
-        marketUtil = await MarketUtil.attach(marketUtilAddress);
+        // Initialize global variables
+        maxGasFee = ethers.utils.parseUnits("10", "ether");
+        royaltyValue = 1000; // 10%
+        marketFee = 250; // 2.5%
+        mimeTypeFee = ethers.utils.parseUnits("10", "ether");
+        salePrice = ethers.utils.parseUnits("5", "ether");
 
+        // Deploy or get existing contracts
+        const contracts = await getMainContracts(marketFee, mimeTypeFee, owner);
+        nft = contracts.nft;
+        market = contracts.market;
+        marketUtil = contracts.marketUtil;
+
+        // Approve market contract
+        console.log("\tcreating approval for market contract...");
+        await nft.connect(seller).setApprovalForAll(market.address, true);
+        console.log("\tapproval created");
+
+        // Create token and add to the market
+        console.log("\tcreating market item...");
+        const tx1 = await market
+            .connect(seller)
+            .mint(1, "https://fake-uri-1.com", "image", artistAddress, royaltyValue);
+        const receipt1 = await tx1.wait();
+        itemId = receipt1.events[2].args[0].toNumber();
+        tokenId = receipt1.events[2].args[2].toNumber();
+        console.log(`\tNFT created with tokenId ${tokenId}`);
+        console.log(`\tMarket item created with itemId ${itemId}`);
+
+        // Puts item on sale
+        console.log("\tputting market item on sale...");
+        const tx2 = await market.connect(seller).putItemOnSale(itemId, 1, salePrice);
+        const receipt2 = await tx2.wait();
+        positionId = receipt2.events[1].args[0].toNumber();
+        console.log(`\tPosition created with id ${positionId}`);
+
+        // Deploy migration contract
         console.log("\tdeploying migration contract...");
         const Migration = await reef.getContractFactory("MarketMigrationSample", owner);
-        migration = await Migration.deploy(marketUtilAddress);
+        migration = await Migration.deploy(market.address, marketUtil.address);
         await migration.deployed();
         console.log(`\tMigration contact deployed ${migration.address}`);
     });
 
-    it("Should migrate data to new market contact", async () => {
+    it("Should migrate existing data to new market contact", async () => {
         const itemsOld = await marketUtil.fetchAllItems();
         itemsOld.forEach(async (itemOld) => {
             const itemNew = await migration.idToItem(itemOld.itemId);
@@ -150,5 +178,32 @@ describe("************ Migration ******************", () => {
             expect(loanData.deadline).to.equal(positionOld.loanData.deadline);
             expect(loanData.lender).to.equal(positionOld.loanData.lender);
         });
+    });
+
+    it("Should update closures in the old contract", async () => {
+        // Add migration address to market contract
+        await market.connect(owner).setMigratorAddress(migration.address);
+
+        // Buy NFT
+        console.log("\tbuyer1 buying NFT from seller...");
+        await market.connect(buyer).createSale(positionId, 1, { value: salePrice });
+        console.log("\tNFT bought");
+
+        // Get sales from migration contract
+        const sales = await migration.connect(owner).fetchItemSales(itemId);
+        const lastSale = sales.at(-1);
+
+        expect(lastSale.seller).to.equal(sellerAddress);
+        expect(lastSale.buyer).to.equal(buyerAddress);
+        expect(Number(lastSale.price)).to.equal(Number(salePrice));
+        expect(Number(lastSale.amount)).to.equal(1);
+    });
+
+    it("Should not put item on sale after migration", async () => {
+        console.log("\tputting market item on sale...");
+        await throwsException(
+            market.connect(buyer).putItemOnSale(itemId, 1, salePrice),
+            "SqwidMarket: Not last market version"
+        );
     });
 });

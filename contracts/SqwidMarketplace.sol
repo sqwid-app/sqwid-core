@@ -7,6 +7,7 @@ import "../@openzeppelin/contracts/utils/Counters.sol";
 import "../@openzeppelin/contracts/access/Ownable.sol";
 import "./interface/ISqwidERC1155.sol";
 import "./interface/INftRoyalties.sol";
+import "./interface/ISqwidMigrator.sol";
 
 contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     using Counters for Counters.Counter;
@@ -109,6 +110,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     mapping(PositionState => uint256) public marketFees;
     uint256 public mimeTypeFee;
     ISqwidERC1155 public sqwidERC1155;
+    ISqwidMigrator public sqwidMigrator;
 
     event ItemCreated(
         uint256 indexed itemId,
@@ -159,6 +161,11 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _;
     }
 
+    modifier isLastVersion() {
+        require(address(sqwidMigrator) == address(0), "SqwidMarket: Not last market version");
+        _;
+    }
+
     constructor(
         uint256 marketFee_,
         uint256 mimeTypeFee_,
@@ -200,6 +207,13 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
      */
     function setNftContractAddress(ISqwidERC1155 sqwidERC1155_) external onlyOwner {
         sqwidERC1155 = sqwidERC1155_;
+    }
+
+    /**
+     * Sets new Marketplace contract address.
+     */
+    function setMigratorAddress(ISqwidMigrator sqwidMigrator_) external onlyOwner {
+        sqwidMigrator = sqwidMigrator_;
     }
 
     /**
@@ -268,7 +282,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     /**
      * Creates new market item.
      */
-    function createItem(uint256 tokenId) public payable returns (uint256) {
+    function createItem(uint256 tokenId) public payable isLastVersion returns (uint256) {
         require(
             sqwidERC1155.balanceOf(msg.sender, tokenId) > 0,
             "SqwidMarket: Address balance too low"
@@ -311,7 +325,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     /**
      * Registers in the marketplace the ownership of an existing item.
      */
-    function addAvailableTokens(uint256 itemId) public itemExists(itemId) {
+    function addAvailableTokens(uint256 itemId) public isLastVersion itemExists(itemId) {
         require(
             ISqwidERC1155(_idToItem[itemId].nftContract).balanceOf(
                 msg.sender,
@@ -335,7 +349,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 itemId,
         uint256 amount,
         uint256 price
-    ) public itemExists(itemId) {
+    ) public isLastVersion itemExists(itemId) {
         require(price > 0, "SqwidMarket: Price cannot be 0");
         require(amount > 0, "SqwidMarket: Amount cannot be 0");
         require(
@@ -427,6 +441,10 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         );
 
         _updateAvailablePosition(itemId, msg.sender);
+
+        if (address(sqwidMigrator) != address(0)) {
+            sqwidMigrator.positionClosed(positionId, msg.sender, true);
+        }
     }
 
     /**
@@ -459,6 +477,10 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _stateToCounter[PositionState.RegularSale].decrement();
 
         _updateAvailablePosition(itemId, msg.sender);
+
+        if (address(sqwidMigrator) != address(0)) {
+            sqwidMigrator.positionClosed(positionId, msg.sender, false);
+        }
     }
 
     /////////////////////////// AUCTION ////////////////////////////////////
@@ -471,7 +493,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 amount,
         uint256 numMinutes,
         uint256 minBid
-    ) public itemExists(itemId) {
+    ) public isLastVersion itemExists(itemId) {
         address nftContract = _idToItem[itemId].nftContract;
         uint256 tokenId = _idToItem[itemId].tokenId;
         require(
@@ -627,6 +649,10 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _stateToCounter[PositionState.Auction].decrement();
 
         _updateAvailablePosition(itemId, receiver);
+
+        if (address(sqwidMigrator) != address(0)) {
+            sqwidMigrator.positionClosed(positionId, receiver, receiver != seller);
+        }
     }
 
     /////////////////////////// RAFFLE ////////////////////////////////////
@@ -638,7 +664,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 itemId,
         uint256 amount,
         uint256 numMinutes
-    ) public itemExists(itemId) {
+    ) public isLastVersion itemExists(itemId) {
         address nftContract = _idToItem[itemId].nftContract;
         uint256 tokenId = _idToItem[itemId].tokenId;
         require(
@@ -786,6 +812,10 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _stateToCounter[PositionState.Raffle].decrement();
 
         _updateAvailablePosition(itemId, receiver);
+
+        if (address(sqwidMigrator) != address(0)) {
+            sqwidMigrator.positionClosed(positionId, receiver, receiver != seller);
+        }
     }
 
     /////////////////////////// LOAN ////////////////////////////////////
@@ -799,7 +829,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 feeAmount,
         uint256 tokenAmount,
         uint256 numMinutes
-    ) public itemExists(itemId) {
+    ) public isLastVersion itemExists(itemId) {
         address nftContract = _idToItem[itemId].nftContract;
         uint256 tokenId = _idToItem[itemId].tokenId;
         require(
@@ -925,6 +955,10 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _stateToCounter[PositionState.Loan].decrement();
 
         _updateAvailablePosition(itemId, borrower);
+
+        if (address(sqwidMigrator) != address(0)) {
+            sqwidMigrator.positionClosed(positionId, borrower, false);
+        }
     }
 
     /**
@@ -961,6 +995,10 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _stateToCounter[PositionState.Loan].decrement();
 
         _updateAvailablePosition(itemId, msg.sender);
+
+        if (address(sqwidMigrator) != address(0)) {
+            sqwidMigrator.positionClosed(positionId, msg.sender, false);
+        }
     }
 
     /**
@@ -995,6 +1033,10 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _stateToCounter[PositionState.Loan].decrement();
 
         _updateAvailablePosition(itemId, msg.sender);
+
+        if (address(sqwidMigrator) != address(0)) {
+            sqwidMigrator.positionClosed(positionId, msg.sender, false);
+        }
     }
 
     /////////////////////////// GETTERS ////////////////////////////////////
