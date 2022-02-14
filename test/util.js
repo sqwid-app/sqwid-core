@@ -2,8 +2,10 @@ const { expect } = require("chai");
 
 exports.getBalance = async (balanceHelper, address, name) => {
     const balance = await balanceHelper.balanceOf(address);
-    const balanceFormatted = Number(ethers.utils.formatUnits(balance.toString(), "ether"));
-    console.log(`\t\tBalance of ${name}:`, balanceFormatted);
+    if (name != "") {
+        const balanceFormatted = Number(ethers.utils.formatUnits(balance.toString(), "ether"));
+        console.log(`\t\tBalance of ${name}:`, balanceFormatted);
+    }
 
     return balance;
 };

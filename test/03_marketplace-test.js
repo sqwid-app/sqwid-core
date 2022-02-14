@@ -268,10 +268,10 @@ describe("************ Marketplace ******************", () => {
             "SqwidMarket: MIME type fee not paid"
         );
 
-        // Create market item sensing enough Reef
+        // Create market item sending enough Reef
         const tx2 = await market.connect(creator).createItem(tokenId, { value: mimeTypeFee });
         const receipt2 = await tx2.wait();
-        const item1Id = receipt2.events[1].args[0].toNumber();
+        const item1Id = receipt2.events[2].args.itemId.toNumber();
         const item1 = await marketUtil.fetchItem(item1Id);
 
         expect(Number(item1.itemId)).to.equal(item1Id);
@@ -304,8 +304,8 @@ describe("************ Marketplace ******************", () => {
                 { value: mimeTypeFee.mul(2) }
             );
         const receipt3 = await tx3.wait();
-        const item2Id = receipt3.events[2].args[0].toNumber();
-        const item3Id = receipt3.events[4].args[0].toNumber();
+        const item2Id = receipt3.events[3].args.itemId.toNumber();
+        const item3Id = receipt3.events[6].args.itemId.toNumber();
         const item2 = await marketUtil.fetchItem(item2Id);
         const item3 = await marketUtil.fetchItem(item3Id);
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);

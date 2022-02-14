@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
+import "./ISqwidERC1155.sol";
+import "./ISqwidMigrator.sol";
+
 interface ISqwidMarketplace {
     enum PositionState {
         Available,
@@ -75,6 +78,18 @@ interface ISqwidMarketplace {
         uint256 totalValue;
         uint256 totalAddresses;
     }
+
+    function transferOwnership(address newOwner) external;
+
+    function setMarketFee(uint16 marketFee_, PositionState typeFee) external;
+
+    function setMimeTypeFee(uint256 mimeTypeFee_) external;
+
+    function setNftContractAddress(ISqwidERC1155 sqwidERC1155_) external;
+
+    function setMigratorAddress(ISqwidMigrator sqwidMigrator_) external;
+
+    function withdraw() external;
 
     function currentItemId() external view returns (uint256);
 

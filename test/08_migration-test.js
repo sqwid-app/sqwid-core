@@ -119,7 +119,7 @@ describe("************ Migration ******************", () => {
             expect(Number(position.price)).to.equal(Number(positionOld.price));
             expect(Number(position.marketFee)).to.equal(Number(positionOld.marketFee));
             expect(position.state).to.equal(positionOld.state);
-            expect(auctionData.deadline).to.equal(positionOld.auctionData.deadline);
+            expect(Number(auctionData.deadline)).to.equal(Number(positionOld.auctionData.deadline));
             expect(Number(auctionData.minBid)).to.equal(Number(positionOld.auctionData.minBid));
             expect(auctionData.highestBidder).to.equal(positionOld.auctionData.highestBidder);
             expect(Number(auctionData.highestBid)).to.equal(
@@ -136,7 +136,7 @@ describe("************ Migration ******************", () => {
         raffles.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
             const raffleData = await migration.idToRaffleData(positionOld.positionId);
-            const [raffleAddrOld, raffleAmountsOld] = await marketUtil.fetchRaffleAmounts(
+            const [raffleAddrOld, raffleAmountsOld] = await marketUtil.fetchRaffleEntries(
                 positionOld.positionId
             );
             const [raffleAddrNew, raffleAmountsNew] = await migration.fetchRaffleAmounts(
@@ -149,7 +149,7 @@ describe("************ Migration ******************", () => {
             expect(Number(position.price)).to.equal(Number(positionOld.price));
             expect(Number(position.marketFee)).to.equal(Number(positionOld.marketFee));
             expect(position.state).to.equal(positionOld.state);
-            expect(raffleData.deadline).to.equal(positionOld.raffleData.deadline);
+            expect(Number(raffleData.deadline)).to.equal(Number(positionOld.raffleData.deadline));
             expect(Number(raffleData.totalValue)).to.equal(
                 Number(positionOld.raffleData.totalValue)
             );
@@ -205,5 +205,7 @@ describe("************ Migration ******************", () => {
             market.connect(buyer).putItemOnSale(itemId, 1, salePrice),
             "SqwidMarket: Not last market version"
         );
+
+        await market.connect(owner).setMigratorAddress(ethers.constants.AddressZero);
     });
 });

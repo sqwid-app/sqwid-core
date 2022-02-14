@@ -7,7 +7,7 @@ This project has been created using the [Hardhat-reef-template](https://github.c
 | |Marketplace contract|NFT contract|Util contract|
 |-----|-----|-----|-----|
 |**Mainnet**|[0x0](https://reefscan.com/contract/0x0)|[0x0](https://reefscan.com/contract/0x0)|[0x0](https://reefscan.com/contract/0x0)|
-|**Testnet**|[0x0](https://testnet.reefscan.com/contract/0x0)|[0x0](https://testnet.reefscan.com/contract/0x0)|[0x0](https://testnet.reefscan.com/contract/0x0)|
+|**Testnet**|[0xE40b4F409F8feD9D617c3b1213a9f20072C22F01](https://testnet.reefscan.com/contract/0xE40b4F409F8feD9D617c3b1213a9f20072C22F01)|[0x6Eeff41dBb98CA81321BC589F45Fe90c8C550bb4](https://testnet.reefscan.com/contract/0x6Eeff41dBb98CA81321BC589F45Fe90c8C550bb4)|[0x30cfFA14E9d1a4c4C83b1f5C0727798A97f757F9](https://testnet.reefscan.com/contract/0x30cfFA14E9d1a4c4C83b1f5C0727798A97f757F9)|
 
 ## Installing
 

@@ -141,11 +141,13 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 amount
     );
 
-    event MarketFeeChanged(uint256 prevValue, uint256 newValue, PositionState typeFee);
+    event BidCreated(uint256 indexed positionId, address indexed bidder, uint256 indexed value);
 
-    event MimeTypeFeeChanged(uint256 prevValue, uint256 newValue);
+    event RaffleEntered(uint256 indexed positionId, address indexed addr, uint256 indexed value);
 
-    event RoyaltiesPaid(uint256 indexed tokenId, uint256 value);
+    event LoanFunded(uint256 indexed positionId, address indexed funder);
+
+    event BalanceUpdated(address indexed addr, uint256 indexed value);
 
     modifier itemExists(uint256 itemId) {
         require(_idToItem[itemId].itemId > 0, "SqwidMarket: Item not found");
@@ -186,20 +188,14 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     function setMarketFee(uint16 marketFee_, PositionState typeFee) external onlyOwner {
         require(marketFee_ <= 1000, "SqwidMarket: Fee higher than 1000");
         require(typeFee != PositionState.Available, "SqwidMarket: Invalid fee type");
-        uint256 prevMarketFee = marketFees[typeFee];
         marketFees[typeFee] = marketFee_;
-
-        emit MarketFeeChanged(prevMarketFee, marketFee_, typeFee);
     }
 
     /**
      * Sets MIME type fee.
      */
     function setMimeTypeFee(uint256 mimeTypeFee_) external onlyOwner {
-        uint256 prevMimeTypeFee = mimeTypeFee;
         mimeTypeFee = mimeTypeFee_;
-
-        emit MimeTypeFeeChanged(prevMimeTypeFee, mimeTypeFee_);
     }
 
     /**
@@ -222,8 +218,11 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     function withdraw() external {
         uint256 amount = addressBalance[msg.sender];
         require(amount > 0, "SqwidMarket: No Reef to be claimed");
+
         addressBalance[msg.sender] = 0;
         payable(msg.sender).transfer(amount);
+
+        emit BalanceUpdated(msg.sender, 0);
     }
 
     /**
@@ -290,7 +289,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         string memory mimeType = sqwidERC1155.mimeType(tokenId);
         if (keccak256(bytes(mimeType)) == keccak256("video")) {
             require(msg.value >= mimeTypeFee, "SqwidMarket: MIME type fee not paid");
-            addressBalance[owner()] += mimeTypeFee;
+            _updateBalance(owner(), mimeTypeFee);
         }
 
         // Check if item already exists
@@ -577,6 +576,8 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         if (secsToDeadline < 600) {
             _idToAuctionData[positionId].deadline += (600 - secsToDeadline);
         }
+
+        emit BidCreated(positionId, msg.sender, msg.value);
     }
 
     /**
@@ -617,7 +618,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
                 address addr = _idToAuctionData[positionId].indexToAddress[i];
                 uint256 bidAmount = _idToAuctionData[positionId].addressToAmount[addr];
                 if (addr != receiver) {
-                    addressBalance[addr] += bidAmount;
+                    _updateBalance(addr, bidAmount);
                 }
             }
             emit MarketItemSold(
@@ -742,6 +743,8 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         }
         _idToRaffleData[positionId].addressToAmount[msg.sender] += value;
         _idToRaffleData[positionId].totalValue += value;
+
+        emit RaffleEntered(positionId, msg.sender, msg.value);
     }
 
     /**
@@ -909,10 +912,12 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
 
         // // Allocate market fee into owner balance
         uint256 marketFeeAmount = (msg.value * _idToPosition[positionId].marketFee) / 10000;
-        addressBalance[owner()] += marketFeeAmount;
+        _updateBalance(owner(), marketFeeAmount);
 
         // Transfer funds to borrower
         payable(_idToPosition[positionId].owner).transfer(msg.value - marketFeeAmount);
+
+        emit LoanFunded(positionId, msg.sender);
     }
 
     /**
@@ -924,15 +929,16 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         positionInState(positionId, PositionState.Loan)
         nonReentrant
     {
-        require(_idToLoanData[positionId].lender != address(0), "SqwidMarket: Loan not funded");
+        address lender = _idToLoanData[positionId].lender;
+        require(lender != address(0), "SqwidMarket: Loan not funded");
         require(
             msg.value >= _idToLoanData[positionId].loanAmount + _idToLoanData[positionId].feeAmount,
             "SqwidMarket: Value sent invalid"
         );
 
         // Transfer funds to lender
-        if (!payable(_idToLoanData[positionId].lender).send(msg.value)) {
-            addressBalance[_idToLoanData[positionId].lender] += msg.value;
+        if (!payable(lender).send(msg.value)) {
+            _updateBalance(lender, msg.value);
         }
 
         uint256 itemId = _idToPosition[positionId].itemId;
@@ -1134,10 +1140,8 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         // Transfer royalties to rightholder if amount is not 0
         if (royaltiesAmount > 0) {
             (bool successTx, ) = royaltiesReceiver.call{ value: royaltiesAmount }("");
-            if (successTx) {
-                emit RoyaltiesPaid(_tokenId, royaltiesAmount);
-            } else {
-                addressBalance[royaltiesReceiver] += royaltiesAmount;
+            if (!successTx) {
+                _updateBalance(royaltiesReceiver, royaltiesAmount);
             }
         }
 
@@ -1185,14 +1189,14 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
 
         // Allocate market fee into owner balance
         uint256 marketFeeAmount = (saleValue * _idToPosition[positionId].marketFee) / 10000;
-        addressBalance[owner()] += marketFeeAmount;
+        _updateBalance(owner(), marketFeeAmount);
 
         uint256 netSaleValue = saleValue - marketFeeAmount;
 
         // Transfer value of the transaction to the seller
         (bool successTx, ) = seller.call{ value: netSaleValue }("");
         if (!successTx) {
-            addressBalance[seller] += netSaleValue;
+            _updateBalance(seller, netSaleValue);
         }
 
         // Transfer ownership of the token to buyer
@@ -1267,5 +1271,13 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
 
         Position memory emptyPosition;
         return emptyPosition;
+    }
+
+    /**
+     * Increments balance of address and emits event.
+     */
+    function _updateBalance(address addr, uint256 value) private {
+        addressBalance[addr] += value;
+        emit BalanceUpdated(addr, addressBalance[addr]);
     }
 }
