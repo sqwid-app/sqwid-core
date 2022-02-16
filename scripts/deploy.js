@@ -31,8 +31,7 @@ async function main() {
     // Deploy SqwidMarketplace
     const Marketplace = await hre.reef.getContractFactory("SqwidMarketplace", ownerAccount);
     const marketFee = 250; // 2.5%
-    const mimeTypeFee = ethers.utils.parseUnits("10", "ether");
-    const marketplace = await Marketplace.deploy(marketFee, mimeTypeFee, nft.address);
+    const marketplace = await Marketplace.deploy(marketFee, nft.address);
     await marketplace.deployed();
     console.log(`SqwidMarketplace deployed in ${marketplace.address}`);
 

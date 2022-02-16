@@ -43,7 +43,7 @@ exports.logEvents = async (promise) => {
 
 exports.delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
-exports.getMainContracts = async (marketFee, mimeTypeFee, owner) => {
+exports.getMainContracts = async (marketFee, owner) => {
     let nftContractAddress = config.contracts.nft;
     let marketContractAddress = config.contracts.market;
     let utilContractAddress = config.contracts.util;
@@ -66,7 +66,7 @@ exports.getMainContracts = async (marketFee, mimeTypeFee, owner) => {
         // Deploy SqwidMarketplace contract
         console.log("\tdeploying Market contract...");
         const Market = await reef.getContractFactory("SqwidMarketplace", owner);
-        market = await Market.deploy(marketFee, mimeTypeFee, nftContractAddress);
+        market = await Market.deploy(marketFee, nftContractAddress);
         await market.deployed();
         marketContractAddress = market.address;
     } else {

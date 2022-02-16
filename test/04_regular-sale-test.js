@@ -20,13 +20,12 @@ describe("************ Regular sale ******************", () => {
 
         // Initialize global variables
         marketFee = 250; // 2.5%
-        mimeTypeFee = ethers.utils.parseUnits("10", "ether");
         maxGasFee = ethers.utils.parseUnits("10", "ether");
         salePrice = ethers.utils.parseUnits("50", "ether");
         royaltyValue = 1000; // 10%
 
         // Deploy or get existing contracts
-        const contracts = await getMainContracts(marketFee, mimeTypeFee, owner);
+        const contracts = await getMainContracts(marketFee, owner);
         nft = contracts.nft;
         market = contracts.market;
         marketUtil = contracts.marketUtil;

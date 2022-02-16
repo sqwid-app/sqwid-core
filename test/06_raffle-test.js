@@ -29,7 +29,6 @@ describe("************ Raffles ******************", () => {
 
         // Initialize global variables
         marketFee = 250; // 2.5%
-        mimeTypeFee = ethers.utils.parseUnits("10", "ether");
         maxGasFee = ethers.utils.parseUnits("10", "ether");
         numMinutes = 1;
         buyer1RaffleAmount = ethers.utils.parseUnits("100", "ether");
@@ -38,7 +37,7 @@ describe("************ Raffles ******************", () => {
         tokensAmount = 15;
 
         // Deploy or get existing contracts
-        const contracts = await getMainContracts(marketFee, mimeTypeFee, owner);
+        const contracts = await getMainContracts(marketFee, owner);
         nft = contracts.nft;
         market = contracts.market;
         marketUtil = contracts.marketUtil;

@@ -1,13 +1,84 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import "../@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import "../@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "../@openzeppelin/contracts/utils/Counters.sol";
-import "../@openzeppelin/contracts/access/Ownable.sol";
-import "./interface/ISqwidERC1155.sol";
-import "./interface/INftRoyalties.sol";
-import "./interface/ISqwidMigrator.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+
+interface ISqwidMigrator {
+    function positionClosed(
+        uint256 positionId,
+        address receiver,
+        bool saleCreated
+    ) external;
+}
+
+/**
+ * Interface for royalties following EIP-2981 (https://eips.ethereum.org/EIPS/eip-2981).
+ */
+interface INftRoyalties is IERC165 {
+    function royaltyInfo(uint256 tokenId, uint256 salePrice)
+        external
+        view
+        returns (address receiver, uint256 royaltyAmount);
+}
+
+interface ISqwidERC1155 {
+    function mint(
+        address to,
+        uint256 amount,
+        string memory tokenURI,
+        string calldata mimeType_,
+        address royaltyRecipient,
+        uint256 royaltyValue
+    ) external returns (uint256);
+
+    function mintBatch(
+        address to,
+        uint256[] memory amounts,
+        string[] memory tokenURIs,
+        string[] calldata mimeTypes,
+        address[] memory royaltyRecipients,
+        uint256[] memory royaltyValues
+    ) external returns (uint256[] memory);
+
+    function burn(
+        address account,
+        uint256 id,
+        uint256 amount
+    ) external;
+
+    function wrapERC721(
+        address extNftContract,
+        uint256 extTokenId,
+        string calldata mimeType_
+    ) external returns (uint256);
+
+    function wrapERC1155(
+        address extNftContract,
+        uint256 extTokenId,
+        string calldata mimeType_,
+        uint256 amount
+    ) external returns (uint256);
+
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 id,
+        uint256 amount,
+        bytes memory data
+    ) external;
+
+    function balanceOf(address account, uint256 id) external view returns (uint256);
+
+    function setApprovalForAll(address operator, bool approved) external;
+
+    function isApprovedForAll(address account, address operator) external view returns (bool);
+
+    function mimeType(uint256 tokenId) external view returns (string memory);
+}
 
 contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     using Counters for Counters.Counter;

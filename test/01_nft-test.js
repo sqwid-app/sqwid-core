@@ -4,7 +4,7 @@ const { getMainContracts, throwsException } = require("./util");
 describe("************ NFT ******************", () => {
     let token1Id, token2Id, token3Id;
 
-    before(async () => {
+    before.only(async () => {
         // Get accounts
         contractOwner = await reef.getSignerByName("account1");
         creator = await reef.getSignerByName("account2");
@@ -18,12 +18,11 @@ describe("************ NFT ******************", () => {
 
         // Initialize global variables
         marketFee = 250; // 2.5%
-        mimeTypeFee = ethers.utils.parseUnits("10", "ether");
         salePrice = ethers.utils.parseUnits("50", "ether");
         royaltyValue = 1000; // 10%
 
         // Deploy or get existing contracts
-        const contracts = await getMainContracts(marketFee, mimeTypeFee, contractOwner);
+        const contracts = await getMainContracts(marketFee, contractOwner);
         nft = contracts.nft;
     });
 

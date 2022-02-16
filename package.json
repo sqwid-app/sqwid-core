@@ -3,14 +3,13 @@
     "scripts": {
         "compile": "hardhat compile",
         "deploy": "yarn hardhat run ./scripts/deploy.js",
-        "deploy:maninnet": "yarn hardhat run ./scripts/deploy.js --network reef_mainnet",
+        "deploy:mainnet": "yarn hardhat run ./scripts/deploy.js --network reef_mainnet",
         "test": "yarn hardhat test",
         "console": "yarn hardhat console"
     },
     "devDependencies": {
         "@nomiclabs/hardhat-ethers": "^2.0.2",
         "@nomiclabs/hardhat-waffle": "^2.0.1",
-        "@openzeppelin/hardhat-upgrades": "^1.13.0",
         "chai": "^4.3.4",
         "eslint": "^7.29.0",
         "eslint-config-prettier": "^8.3.0",

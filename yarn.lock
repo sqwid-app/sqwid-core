@@ -4026,37 +4026,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/hardhat-upgrades@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@openzeppelin/hardhat-upgrades@npm:1.13.0"
-  dependencies:
-    "@openzeppelin/upgrades-core": ^1.11.0
-    chalk: ^4.1.0
-  peerDependencies:
-    "@nomiclabs/hardhat-ethers": ^2.0.0
-    hardhat: ^2.0.2
-  bin:
-    migrate-oz-cli-project: dist/scripts/migrate-oz-cli-project.js
-  checksum: f5801138629cedb29ed6f9677d4c68a7db3edad1f05f866ba4c5a215a4ddcfee1dae426ef14fb81ba9e8094225ed375eb3514b9ba9619ec84bcee81c78b83da1
-  languageName: node
-  linkType: hard
-
-"@openzeppelin/upgrades-core@npm:^1.11.0":
-  version: 1.11.0
-  resolution: "@openzeppelin/upgrades-core@npm:1.11.0"
-  dependencies:
-    bn.js: ^5.1.2
-    cbor: ^8.0.0
-    chalk: ^4.1.0
-    compare-versions: ^4.0.0
-    debug: ^4.1.1
-    ethereumjs-util: ^7.0.3
-    proper-lockfile: ^4.1.1
-    solidity-ast: ^0.4.15
-  checksum: c9c754365f48151867bfa7b0d78a1d54d3e25bd845a64ee143156d7985d8336cada53235f2dd10abed9017b1ac8e7312a252c66ccacff69b111906ee5fa852df
-  languageName: node
-  linkType: hard
-
 "@polkadot/api-derive@npm:4.11.2, @polkadot/api-derive@npm:^4.3.1":
   version: 4.11.2
   resolution: "@polkadot/api-derive@npm:4.11.2"
@@ -7326,15 +7295,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"cbor@npm:^8.0.0":
-  version: 8.1.0
-  resolution: "cbor@npm:8.1.0"
-  dependencies:
-    nofilter: ^3.1.0
-  checksum: 25ff71bd10e6f81e14ddaba17e7c1f58190b098eab2900f90806d9a7cfe6a43a0b3eb27b674b4507920a243e21307e587c17a190f2adb11c884ca3dce19fe923
-  languageName: node
-  linkType: hard
-
 "chai@npm:^4.3.4":
   version: 4.3.4
   resolution: "chai@npm:4.3.4"
@@ -7849,13 +7809,6 @@ __metadata:
   version: 1.0.1
   resolution: "commondir@npm:1.0.1"
   checksum: 98f18ad14f0ea38e0866db365bc8496f2a74250cf47ec96b94913e1b0574c99b4ff837a9f05dbc68d82505fd06b52dfba4f6bbe6fbda43094296cfaf33b475a0
-  languageName: node
-  linkType: hard
-
-"compare-versions@npm:^4.0.0":
-  version: 4.1.3
-  resolution: "compare-versions@npm:4.1.3"
-  checksum: a986cb9de7b4eb5b3a1f4fd6f0121b1979f0bcdc82df7e7ca487da5cf365e514830deb22d95dde461817fdb930fa35969201bce9583ea05944a11018664563d4
   languageName: node
   linkType: hard
 
@@ -10124,7 +10077,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethereumjs-util@npm:^7.0.10, ethereumjs-util@npm:^7.0.3, ethereumjs-util@npm:^7.1.0, ethereumjs-util@npm:^7.1.1, ethereumjs-util@npm:^7.1.2, ethereumjs-util@npm:^7.1.3":
+"ethereumjs-util@npm:^7.0.10, ethereumjs-util@npm:^7.1.0, ethereumjs-util@npm:^7.1.1, ethereumjs-util@npm:^7.1.2, ethereumjs-util@npm:^7.1.3":
   version: 7.1.3
   resolution: "ethereumjs-util@npm:7.1.3"
   dependencies:
@@ -15714,13 +15667,6 @@ fsevents@~2.1.1:
   languageName: node
   linkType: hard
 
-"nofilter@npm:^3.1.0":
-  version: 3.1.0
-  resolution: "nofilter@npm:3.1.0"
-  checksum: d36f688b878b4a38305cfe66b33b129ef6d1737b55ad40cc917259a1d44c6e80b2b4ab81c3e86504faa0a3bcb1dad40b265026765140823c496210ee8fa1c91e
-  languageName: node
-  linkType: hard
-
 "nopt@npm:3.x":
   version: 3.0.6
   resolution: "nopt@npm:3.0.6"
@@ -17079,17 +17025,6 @@ fsevents@~2.1.1:
     object-assign: ^4.1.1
     react-is: ^16.8.1
   checksum: a440dd406c5cf53bf39f3e898d2c65178511d34ca3c8c789b30c177992408b9e4273969726b274719aa69ccce5ab34b2fd8caa60b90f23cd2e910cdcf682de52
-  languageName: node
-  linkType: hard
-
-"proper-lockfile@npm:^4.1.1":
-  version: 4.1.2
-  resolution: "proper-lockfile@npm:4.1.2"
-  dependencies:
-    graceful-fs: ^4.2.4
-    retry: ^0.12.0
-    signal-exit: ^3.0.2
-  checksum: a89fe12b3ed2a1413731cfa3b705b94f2411354cce660a2120cc0bd9337cef3710c41f73b88bc4f13eca8efa6530883645dea8e077b32d519d067f0f11271c34
   languageName: node
   linkType: hard
 
@@ -18867,13 +18802,6 @@ resolve@^2.0.0-next.3:
   languageName: node
   linkType: hard
 
-"solidity-ast@npm:^0.4.15":
-  version: 0.4.29
-  resolution: "solidity-ast@npm:0.4.29"
-  checksum: 255254ec2e824da44d01b57db47f9596295e94ff8b7ba932edcc5e56be4fb3ac0a735309757f7da197722ee86d423bc5ab0b38f988ffde5ba9a98045c26864de
-  languageName: node
-  linkType: hard
-
 "solidity-comments-extractor@npm:^0.0.7":
   version: 0.0.7
   resolution: "solidity-comments-extractor@npm:0.0.7"
@@ -19079,7 +19007,6 @@ resolve@^2.0.0-next.3:
   dependencies:
     "@nomiclabs/hardhat-ethers": ^2.0.2
     "@nomiclabs/hardhat-waffle": ^2.0.1
-    "@openzeppelin/hardhat-upgrades": ^1.13.0
     "@reef-defi/hardhat-reef": ^0.4.13
     chai: ^4.3.4
     eslint: ^7.29.0

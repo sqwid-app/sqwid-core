@@ -25,10 +25,9 @@ describe("************ Governance ******************", () => {
         maxGasFee = ethers.utils.parseUnits("10", "ether");
         royaltyValue = 1000; // 10%
         marketFee = 250;
-        mimeTypeFee = ethers.utils.parseUnits("10", "ether");
 
         // Deploy or get existing contracts
-        const contracts = await getMainContracts(marketFee, mimeTypeFee, iniOwner);
+        const contracts = await getMainContracts(marketFee, iniOwner);
         nft = contracts.nft;
         market = contracts.market;
         marketUtil = contracts.marketUtil;
@@ -101,16 +100,6 @@ describe("************ Governance ******************", () => {
         await governance.connect(owner2).setMarketFee(250, 1);
         fetchedMarketFee = await market.marketFees(1);
         expect(Number(fetchedMarketFee)).to.equal(250);
-    });
-
-    it("Should set MIME type fee", async () => {
-        await governance.connect(owner2).setMimeTypeFee(mimeTypeFee.mul(2));
-        let fetchedMimeFee = await market.mimeTypeFee();
-        expect(Number(fetchedMimeFee)).to.equal(Number(mimeTypeFee.mul(2)));
-
-        await governance.connect(owner3).setMimeTypeFee(mimeTypeFee);
-        fetchedMimeFee = await market.mimeTypeFee();
-        expect(Number(fetchedMimeFee)).to.equal(Number(mimeTypeFee));
     });
 
     it("Should set NFT contract address", async () => {

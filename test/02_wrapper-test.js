@@ -19,12 +19,11 @@ describe("************ Wrapper ******************", () => {
 
         // Initialize global variables
         marketFee = 250; // 2.5%
-        mimeTypeFee = ethers.utils.parseUnits("10", "ether");
         royaltyValue = 2000; // 20%
         token2Amount = 99;
 
         // Deploy or get existing contracts
-        const contracts = await getMainContracts(marketFee, mimeTypeFee, owner);
+        const contracts = await getMainContracts(marketFee, owner);
         sqwidNft = contracts.nft;
         const dummyNftContract = await getDummyNfts();
         dummyERC721 = dummyNftContract.dummyERC721;

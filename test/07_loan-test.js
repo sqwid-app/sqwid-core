@@ -32,10 +32,9 @@ describe("************ Loans ******************", () => {
         token1Amount = 1000;
         token2Amount = 1;
         marketFee = 250; // 2.5%
-        mimeTypeFee = ethers.utils.parseUnits("10", "ether");
 
         // Deploy or get existing contracts
-        const contracts = await getMainContracts(marketFee, mimeTypeFee, owner);
+        const contracts = await getMainContracts(marketFee, owner);
         nft = contracts.nft;
         market = contracts.market;
         marketUtil = contracts.marketUtil;
