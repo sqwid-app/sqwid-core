@@ -32,12 +32,7 @@ contract SqwidGovernance {
         }
     }
 
-    receive() external payable {
-        uint256 share = msg.value / owners.length;
-        for (uint256 i; i < owners.length; i++) {
-            addressBalance[owners[i]] += share;
-        }
-    }
+    receive() external payable {}
 
     function setMarketFee(uint16 marketFee, ISqwidMarketplace.PositionState typeFee)
         external
@@ -67,10 +62,28 @@ contract SqwidGovernance {
             marketOwnerApprovals[newMarketOwner] == owners.length,
             "Governance: New owner not approved"
         );
+
+        marketOwnerApprovals[newMarketOwner] = 0;
+        for (uint256 i; i < owners.length; i++) {
+            isApproved[newMarketOwner][owners[i]] = false;
+        }
+
         marketplace.transferOwnership(newMarketOwner);
     }
 
     function withdraw() external onlyOwner {
+        uint256 availableBalance = address(this).balance;
+        for (uint256 i; i < owners.length; i++) {
+            availableBalance -= addressBalance[owners[i]];
+        }
+
+        if (availableBalance >= owners.length) {
+            uint256 share = availableBalance / owners.length;
+            for (uint256 i; i < owners.length; i++) {
+                addressBalance[owners[i]] += share;
+            }
+        }
+
         uint256 amount = addressBalance[msg.sender];
         require(amount > 0, "No Reef to be claimed");
 

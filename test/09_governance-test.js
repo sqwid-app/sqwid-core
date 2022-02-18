@@ -156,27 +156,32 @@ describe("************ Governance ******************", () => {
             "Governance: Caller is not owner"
         );
 
+        // Initial balances
+        const iniGovernanceBalance = await getBalance(balanceHelper, governanceAddress, "");
+        const iniOwner2GovBalance = await governance.addressBalance(owner2Address);
+        const iniOwner3GovBalance = await governance.addressBalance(owner3Address);
+
         // owner1 transfers funds from marketplace to governance contract
         console.log(`\ttransfering fees from marketplace...`);
-        await governance.connect(owner1).transferFromMarketplace(); // TODO failed transaction
+        await governance.connect(owner1).transferFromMarketplace();
         console.log(`\tFees transfeed.`);
+        const endGovernanceBalance = Number(await getBalance(balanceHelper, governanceAddress, ""));
         expect(Number(await market.addressBalance(governanceAddress))).to.equal(0);
-        expect(Number(await getBalance(balanceHelper, governanceAddress, ""))).to.equal(
-            Number(feeAmount)
-        );
-        expect(Number(await governance.addressBalance(owner1Address))).to.equal(Number(feeShare));
-        expect(Number(await governance.addressBalance(owner2Address))).to.equal(Number(feeShare));
-        expect(Number(await governance.addressBalance(owner3Address))).to.equal(Number(feeShare));
+        expect(Number(endGovernanceBalance)).to.equal(Number(iniGovernanceBalance.add(feeAmount)));
 
         // owner1 withdraws funds from governance contract
         const iniOwner1Balance = await getBalance(balanceHelper, owner1Address, "owner1");
         await governance.connect(owner1).withdraw();
         expect(Number(await getBalance(balanceHelper, governanceAddress, ""))).to.equal(
-            feeAmount.sub(Number(feeShare))
+            Number(feeAmount.sub(feeShare))
         );
         expect(Number(await governance.addressBalance(owner1Address))).to.equal(0);
-        expect(Number(await governance.addressBalance(owner2Address))).to.equal(Number(feeShare));
-        expect(Number(await governance.addressBalance(owner3Address))).to.equal(Number(feeShare));
+        expect(Number(await governance.addressBalance(owner2Address))).to.equal(
+            Number(iniOwner2GovBalance.add(feeShare))
+        );
+        expect(Number(await governance.addressBalance(owner3Address))).to.equal(
+            Number(iniOwner3GovBalance.add(feeShare))
+        );
         const endOwner1Balance = await getBalance(balanceHelper, owner1Address, "owner1");
         console.log("Net amount:", endOwner1Balance.sub(iniOwner1Balance) / 1e18); // Amount received minus gas fees
 
@@ -188,7 +193,9 @@ describe("************ Governance ******************", () => {
         );
         expect(Number(await governance.addressBalance(owner1Address))).to.equal(0);
         expect(Number(await governance.addressBalance(owner2Address))).to.equal(0);
-        expect(await governance.addressBalance(owner3Address)).to.equal(feeShare);
+        expect(Number(await governance.addressBalance(owner3Address))).to.equal(
+            Number(iniOwner3GovBalance.add(feeShare))
+        );
         const endOwner2Balance = await getBalance(balanceHelper, owner2Address, "owner2");
         console.log("Net amount:", endOwner2Balance.sub(iniOwner2Balance) / 1e18); // Amount received minus gas fees
 

@@ -4,7 +4,7 @@ const { getMainContracts, throwsException } = require("./util");
 describe("************ NFT ******************", () => {
     let token1Id, token2Id, token3Id;
 
-    before.only(async () => {
+    before(async () => {
         // Get accounts
         contractOwner = await reef.getSignerByName("account1");
         creator = await reef.getSignerByName("account2");
