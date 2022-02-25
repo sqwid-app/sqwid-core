@@ -1,5 +1,5 @@
-const { expect, assert } = require("chai");
-const { getMainContracts, throwsException } = require("./util");
+const { expect } = require("chai");
+const { getMainContracts, getBalanceHelper, getBalance, throwsException } = require("./util");
 
 describe("************ Marketplace ******************", () => {
     before(async () => {
@@ -81,7 +81,9 @@ describe("************ Marketplace ******************", () => {
 
     it("Should mint batch of NFTs and create market items", async () => {
         // Initial data
-        const iniItemsCreated = await marketUtil.fetchAddressItemsCreated(creatorAddress);
+        const iniNumItemsCreated = Number(
+            await marketUtil.fetchAddressNumberItemsCreated(creatorAddress)
+        );
 
         // Create tokens
         console.log("\tcreating token...");
@@ -107,7 +109,9 @@ describe("************ Marketplace ******************", () => {
         const item2 = await marketUtil.fetchItem(item2Id);
         const royaltyInfo1 = await nft.royaltyInfo(token1Id, 10000);
         const royaltyInfo2 = await nft.royaltyInfo(token2Id, 10000);
-        const endItemsCreated = await marketUtil.fetchAddressItemsCreated(creatorAddress);
+        const endNumItemsCreated = Number(
+            await marketUtil.fetchAddressNumberItemsCreated(creatorAddress)
+        );
 
         // Evaluate results
         expect(royaltyInfo1.receiver).to.equal(artistAddress);
@@ -132,8 +136,7 @@ describe("************ Marketplace ******************", () => {
         expect(item1.creator).to.equal(creatorAddress);
         expect(item2.creator).to.equal(creatorAddress);
 
-        expect(endItemsCreated.length - iniItemsCreated.length).to.equal(2);
-        expect(endItemsCreated[0].creator).to.equal(creatorAddress);
+        expect(endNumItemsCreated - iniNumItemsCreated).to.equal(2);
     });
 
     it("Should create market item from existing NFT", async () => {
@@ -193,11 +196,14 @@ describe("************ Marketplace ******************", () => {
         console.log(`\tMarket item created with id ${itemId}.`);
 
         // Initial data
-        const inicreatorPositions = await marketUtil.fetchAddressPositions(creatorAddress);
-        const inicreatorTokenPosition = inicreatorPositions.at(-1);
-        const iniArtistPositions = await marketUtil.fetchAddressPositions(artistAddress);
+        const iniNumCreatorPositions = Number(
+            await marketUtil.fetchAddressNumberPositions(creatorAddress)
+        );
+        const iniNumArtistPositions = Number(
+            await marketUtil.fetchAddressNumberPositions(artistAddress)
+        );
         const iniItem = await marketUtil.fetchItem(itemId);
-        const iniPositions = await marketUtil.fetchPositionsByState(0);
+        const iniNumPositions = Number(await marketUtil.fetchNumberPositionsByState(0));
 
         // Transfers tokens outside the marketplace
         console.log("\tcreator tansfering tokens to artist...");
@@ -210,20 +216,73 @@ describe("************ Marketplace ******************", () => {
         console.log("\tTokens registered.");
 
         // Final data
-        const endcreatorPositions = await marketUtil.fetchAddressPositions(creatorAddress);
-        const endcreatorTokenPosition = endcreatorPositions.at(-1);
-        const endArtistPositions = await marketUtil.fetchAddressPositions(artistAddress);
-        const endArtistTokenPosition = endArtistPositions.at(-1);
+        const endNumCreatorPositions = Number(
+            await marketUtil.fetchAddressNumberPositions(creatorAddress)
+        );
+        const endNumArtistPositions = Number(
+            await marketUtil.fetchAddressNumberPositions(artistAddress)
+        );
         const endItem = await marketUtil.fetchItem(itemId);
-        const endPositions = await marketUtil.fetchPositionsByState(0);
+        const endNumPositions = Number(await marketUtil.fetchNumberPositionsByState(0));
 
         // Evaluate results
-        expect(endPositions.length - iniPositions.length).to.equal(1);
+        expect(endNumPositions - iniNumPositions).to.equal(1);
         expect(endItem.positions.length - iniItem.positions.length).to.equal(1);
-        assert(endcreatorPositions.length == inicreatorPositions.length);
-        expect(endArtistPositions.length - iniArtistPositions.length).to.equal(1);
-        expect(Number(inicreatorTokenPosition.amount)).to.equal(100);
-        expect(Number(endcreatorTokenPosition.amount)).to.equal(90);
-        expect(Number(endArtistTokenPosition.amount)).to.equal(10);
+        expect(endNumCreatorPositions).to.equal(iniNumCreatorPositions);
+        expect(endNumArtistPositions - iniNumArtistPositions).to.equal(1);
+    });
+
+    // TODO remove
+    it("Should mint batch of NFTs and create market items", async () => {
+        balanceHelper = await getBalanceHelper();
+
+        // Initial data
+        const iniItemsCreated = Number(
+            await marketUtil.fetchAddressNumberItemsCreated(creatorAddress)
+        );
+
+        const ITEM_START = 100;
+        const NUM_ITEMS = 25;
+        const BASE_URI = "ipfs://QmQAoMbqJsfxUSLZZwS3zG34nGkWtPhXoXk7itrqC9Tb1q/sqwid-0{id}.json";
+
+        // Create tokens
+        console.log("\tcreating token...");
+        const units = [];
+        const uris = [];
+        const mimes = [];
+        const artistAddrs = [];
+        const royalties = [];
+        for (let i = ITEM_START; i < ITEM_START + NUM_ITEMS; i++) {
+            units.push(1);
+            uris.push(BASE_URI.replace("{id}", String(i).padStart(4, "0")));
+            mimes.push("image");
+            artistAddrs.push(artistAddress);
+            royalties.push(royaltyValue);
+        }
+
+        console.log("creating from " + ITEM_START + " to " + (ITEM_START + NUM_ITEMS - 1));
+        await getBalance(balanceHelper, creatorAddress, "creator");
+
+        const tx = await market
+            .connect(creator)
+            .mintBatch(units, uris, mimes, artistAddrs, royalties);
+        const receipt = await tx.wait();
+
+        await getBalance(balanceHelper, creatorAddress, "creator");
+
+        for (let i = 2; i < receipt.events.length; i += 2) {
+            const itemId = receipt.events[i].args[0].toNumber();
+            console.log(`\tMarket item created with itemId ${itemId}`);
+        }
+
+        const endItemsCreated = Number(
+            await marketUtil.fetchAddressNumberItemsCreated(creatorAddress)
+        );
+        console.log(endItemsCreated - iniItemsCreated);
+
+        expect(endItemsCreated - iniItemsCreated).to.equal(NUM_ITEMS);
+
+        let itemsCreated = Number(await marketUtil.fetchAddressItemsCreated(creatorAddress, 10, 2));
+        console.log("itemsCreated", itemsCreated.length);
     });
 });

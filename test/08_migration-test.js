@@ -59,7 +59,16 @@ describe("************ Migration ******************", () => {
     });
 
     it("Should migrate existing data to new market contact", async () => {
-        const itemsOld = await marketUtil.fetchAllItems();
+        const itemsOld = [];
+        let itemsPage = 1;
+        let itemsTotalPages = 0;
+        do {
+            [items, totalPages] = await marketUtil.fetchItems(25, itemsPage);
+            itemsOld.push(...items);
+            totalPages_ = Number(itemsTotalPages);
+            itemsPage++;
+        } while (itemsTotalPages > itemsPage + 1);
+
         itemsOld.forEach(async (itemOld) => {
             const itemNew = await migration.idToItem(itemOld.itemId);
             const sales = await migration.fetchItemSales(itemOld.itemId);
@@ -77,7 +86,7 @@ describe("************ Migration ******************", () => {
             });
         });
 
-        const availablePositions = await marketUtil.fetchPositionsByState(0);
+        const availablePositions = await getAllPositionsByState(0);
         availablePositions.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
             expect(Number(position.positionId)).to.equal(Number(positionOld.positionId));
@@ -89,7 +98,7 @@ describe("************ Migration ******************", () => {
             expect(position.state).to.equal(positionOld.state);
         });
 
-        const onSale = await marketUtil.fetchPositionsByState(1);
+        const onSale = await getAllPositionsByState(1);
         onSale.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
             expect(Number(position.positionId)).to.equal(Number(positionOld.positionId));
@@ -101,7 +110,7 @@ describe("************ Migration ******************", () => {
             expect(position.state).to.equal(positionOld.state);
         });
 
-        const auctions = await marketUtil.fetchPositionsByState(2);
+        const auctions = await getAllPositionsByState(2);
         auctions.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
             const auctionData = await migration.idToAuctionData(positionOld.positionId);
@@ -118,7 +127,7 @@ describe("************ Migration ******************", () => {
             expect(Number(position.price)).to.equal(Number(positionOld.price));
             expect(Number(position.marketFee)).to.equal(Number(positionOld.marketFee));
             expect(position.state).to.equal(positionOld.state);
-            expect(Number(auctionData.deadline)).to.equal(Number(positionOld.auctionData.deadline));
+            expect(auctionData.deadline).to.equal(positionOld.auctionData.deadline);
             expect(Number(auctionData.minBid)).to.equal(Number(positionOld.auctionData.minBid));
             expect(auctionData.highestBidder).to.equal(positionOld.auctionData.highestBidder);
             expect(Number(auctionData.highestBid)).to.equal(
@@ -131,14 +140,14 @@ describe("************ Migration ******************", () => {
             });
         });
 
-        const raffles = await marketUtil.fetchPositionsByState(3);
+        const raffles = await getAllPositionsByState(3);
         raffles.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
             const raffleData = await migration.idToRaffleData(positionOld.positionId);
             const [raffleAddrOld, raffleAmountsOld] = await marketUtil.fetchRaffleEntries(
                 positionOld.positionId
             );
-            const [raffleAddrNew, raffleAmountsNew] = await migration.fetchRaffleAmounts(
+            const [raffleAddrNew, raffleAmountsNew] = await migration.fetchRaffleEntries(
                 positionOld.positionId
             );
             expect(Number(position.positionId)).to.equal(Number(positionOld.positionId));
@@ -148,7 +157,7 @@ describe("************ Migration ******************", () => {
             expect(Number(position.price)).to.equal(Number(positionOld.price));
             expect(Number(position.marketFee)).to.equal(Number(positionOld.marketFee));
             expect(position.state).to.equal(positionOld.state);
-            expect(Number(raffleData.deadline)).to.equal(Number(positionOld.raffleData.deadline));
+            expect(raffleData.deadline).to.equal(positionOld.raffleData.deadline);
             expect(Number(raffleData.totalValue)).to.equal(
                 Number(positionOld.raffleData.totalValue)
             );
@@ -160,7 +169,7 @@ describe("************ Migration ******************", () => {
             });
         });
 
-        const loans = await marketUtil.fetchPositionsByState(4);
+        const loans = await getAllPositionsByState(4);
         loans.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
             const loanData = await migration.idToLoanData(positionOld.positionId);
@@ -207,4 +216,18 @@ describe("************ Migration ******************", () => {
 
         await market.connect(owner).setMigratorAddress(ethers.constants.AddressZero);
     });
+
+    async function getAllPositionsByState(state) {
+        let page = 1;
+        let _totalPages = 0;
+        const totalPositions = [];
+        do {
+            [positions, totalPages] = await marketUtil.fetchPositionsByState(state, 100, page);
+            totalPositions.push(...positions);
+            _totalPages = Number(totalPages);
+            page++;
+        } while (_totalPages >= page);
+
+        return totalPositions;
+    }
 });

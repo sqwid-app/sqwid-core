@@ -929,6 +929,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         );
 
         // Delete position and loan data
+        delete _idToLoanData[positionId];
         delete _idToPosition[positionId];
         emit PositionDelete(positionId);
         _idToItem[itemId].positionCount--;
@@ -969,6 +970,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         );
 
         // Delete position and loan data
+        delete _idToLoanData[positionId];
         delete _idToPosition[positionId];
         emit PositionDelete(positionId);
         _idToItem[itemId].positionCount--;
@@ -1007,6 +1009,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         );
 
         // Delete position and loan data
+        delete _idToLoanData[positionId];
         delete _idToPosition[positionId];
         emit PositionDelete(positionId);
         _idToItem[itemId].positionCount--;

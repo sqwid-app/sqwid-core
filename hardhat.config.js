@@ -57,7 +57,7 @@ module.exports = {
     contracts: {
         market: "0x4eacc63FC1b76b453aF8e3871d4F320b2e461408",
         nft: "0x03aE38D60a5F97a747980d6EC4B1CdDAAb9F1979",
-        util: "0x7E2f35C171Ea6B96B45acBC079D391e06097a5E0",
+        util: "0xB63F5d681091eC54EBBAd827907fec48ac924CDd",
         governance: "0xdEDa2F0eDde18bca36639B2896Ce66CbCc3C45f9",
         balanceHelper: "0x6aC1413A64b153aA16fabbD9F97D30dC2CDE2604",
         dummyERC721: "0xf5c05d8013724AC037eE6AD9CCea04905384bacE",

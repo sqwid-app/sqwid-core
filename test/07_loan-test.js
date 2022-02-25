@@ -48,7 +48,7 @@ describe("************ Loans ******************", () => {
         console.log("\tapproval created");
 
         // Initial data
-        const iniLoans = await marketUtil.fetchPositionsByState(4);
+        const iniNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
 
         // Create token and add to the market
         console.log("\tcreating market item...");
@@ -71,7 +71,7 @@ describe("************ Loans ******************", () => {
         console.log(`\tLoan proposal created with id ${loan1Id}`);
 
         // Final data
-        const endLoans = await marketUtil.fetchPositionsByState(4);
+        const endNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
         const loan = await marketUtil.fetchPosition(loan1Id);
         const endBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token1Id);
         const endMarketTokenAmount = await nft.balanceOf(market.address, token1Id);
@@ -80,7 +80,7 @@ describe("************ Loans ******************", () => {
         expect(Number(loan.item.itemId)).to.equal(item1Id);
         expect(Number(endBorrowerTokenAmount)).to.equal(0);
         expect(Number(endMarketTokenAmount)).to.equal(token1Amount);
-        expect(endLoans.length).to.equal(iniLoans.length + 1);
+        expect(endNumLoans).to.equal(iniNumLoans + 1);
         expect(loan.item.nftContract).to.equal(nft.address);
         expect(Number(loan.item.tokenId)).to.equal(token1Id);
         expect(loan.owner).to.equal(borrowerAddress);
@@ -95,7 +95,7 @@ describe("************ Loans ******************", () => {
 
     it("Should only allow to unlist loan to borrower", async () => {
         // Initial data
-        const iniLoans = await marketUtil.fetchPositionsByState(4);
+        const iniNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
         const iniBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token1Id);
         const iniMarketTokenAmount = await nft.balanceOf(market.address, token1Id);
 
@@ -110,13 +110,13 @@ describe("************ Loans ******************", () => {
         console.log("\tLoan proposal unlisted.");
 
         // Final data
-        const endLoans = await marketUtil.fetchPositionsByState(4);
+        const endNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
         const endBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token1Id);
         const endMarketTokenAmount = await nft.balanceOf(market.address, token1Id);
 
         expect(endBorrowerTokenAmount - iniBorrowerTokenAmount).to.equal(token1Amount);
         expect(iniMarketTokenAmount - endMarketTokenAmount).to.equal(token1Amount);
-        expect(endLoans.length).to.equal(iniLoans.length - 1);
+        expect(endNumLoans).to.equal(iniNumLoans - 1);
     });
 
     it("Should fund loan", async () => {
@@ -134,11 +134,12 @@ describe("************ Loans ******************", () => {
         const iniBorrowerBalance = await getBalance(balanceHelper, borrowerAddress, "borrower");
         const iniMarketBalance = await getBalance(balanceHelper, market.address, "market");
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
+        const iniLenderNumLoans = Number(await marketUtil.fetchAddressNumberLoans(lenderAddress));
 
         // Fund proposal
         console.log("\tlender funding loan...");
         await market.connect(lender).fundLoan(loan2Id, { value: loanAmount });
-        console.log("\tloan proposal created");
+        console.log("\tloan funded.");
 
         // Final data
         const loan = await marketUtil.fetchPosition(loan2Id);
@@ -149,6 +150,8 @@ describe("************ Loans ******************", () => {
         deadline = new Date(loan.loanData.deadline * 1000);
         const marketFeeAmountRaw = (loanAmount * marketFee) / 10000;
         const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
+        const endLenderNumLoans = Number(await marketUtil.fetchAddressNumberLoans(lenderAddress));
+        const lenderLoans = await getAllAddressLoans(lenderAddress);
 
         // Evaluate results
         expect(loan.loanData.lender).to.equal(lenderAddress);
@@ -165,6 +168,11 @@ describe("************ Loans ******************", () => {
         expect(deadline)
             .to.lt(new Date(new Date().getTime() + 90000))
             .to.gt(new Date(new Date().getTime() + 30000)); // +/- 30 secs. margin for timestamp calculation
+
+        expect(endLenderNumLoans - iniLenderNumLoans).to.equal(1);
+        expect(Number(lenderLoans.at(-1).positionId)).to.equal(Number(loan2Id));
+        expect(lenderLoans.at(-1).loanData.lender).to.equal(lenderAddress);
+        expect(Number(lenderLoans.at(-1).loanData.loanAmount)).to.equal(Number(loanAmount));
     });
 
     it("Should not allow to unlist funded loan", async () => {
@@ -186,10 +194,10 @@ describe("************ Loans ******************", () => {
         // Initial data
         const iniLenderBalance = await getBalance(balanceHelper, lenderAddress, "lender");
         const iniBorrowerBalance = await getBalance(balanceHelper, borrowerAddress, "borrower");
-        const iniLoans = await marketUtil.fetchPositionsByState(4);
+        const iniNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
         const iniLenderTokenAmount = await nft.balanceOf(lenderAddress, token1Id);
         const iniMarketTokenAmount = await nft.balanceOf(market.address, token1Id);
-        const iniLenderPositions = await marketUtil.fetchAddressPositions(lenderAddress);
+        const iniLenderPositions = await getAllAddressPositions(lenderAddress);
 
         // Wait until deadline
         const timeUntilDeadline = deadline - new Date();
@@ -208,10 +216,10 @@ describe("************ Loans ******************", () => {
         // Final data
         const endLenderBalance = await getBalance(balanceHelper, lenderAddress, "lender");
         const endBorrowerBalance = await getBalance(balanceHelper, borrowerAddress, "borrower");
-        const endLoans = await marketUtil.fetchPositionsByState(4);
+        const endNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
         const endLenderTokenAmount = await nft.balanceOf(lenderAddress, token1Id);
         const endMarketTokenAmount = await nft.balanceOf(market.address, token1Id);
-        const endLenderPositions = await marketUtil.fetchAddressPositions(lenderAddress);
+        const endLenderPositions = await getAllAddressPositions(lenderAddress);
 
         // Evaluate results
         expect(endLenderTokenAmount - iniLenderTokenAmount).to.equal(token1Amount);
@@ -228,7 +236,7 @@ describe("************ Loans ******************", () => {
             )
         ).to.equal(token1Amount);
         expect(iniMarketTokenAmount - endMarketTokenAmount).to.equal(token1Amount);
-        expect(endLoans.length).to.equal(iniLoans.length - 1);
+        expect(endNumLoans).to.equal(iniNumLoans - 1);
         expect(Number(endBorrowerBalance)).to.equals(Number(iniBorrowerBalance));
         expect(Number(endLenderBalance))
             .to.lte(Number(iniLenderBalance))
@@ -249,13 +257,12 @@ describe("************ Loans ******************", () => {
 
         // Create loan proposal
         console.log("\tborrower creating loan proposal...");
-        await market
+        const tx2 = await market
             .connect(borrower)
             .createItemLoan(item2Id, loanAmount, feeAmount, token2Amount, loanDuration);
-        console.log("\tloan proposal created");
-
-        const loan = (await marketUtil.fetchPositionsByState(4)).at(-1);
-        loan3Id = loan.positionId;
+        const receipt2 = await tx2.wait();
+        loan3Id = receipt2.events[1].args.positionId;
+        console.log(`\tloan proposal created with id ${loan3Id}`);
 
         // Fund proposal
         console.log("\tlender funding loan...");
@@ -274,7 +281,7 @@ describe("************ Loans ******************", () => {
         // Initial data
         const iniBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token2Id);
         const iniMarketTokenAmount = await nft.balanceOf(market.address, token2Id);
-        const iniLoans = await marketUtil.fetchPositionsByState(4);
+        const iniNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
         const iniLenderBalance = await getBalance(balanceHelper, lenderAddress, "lender");
         const iniBorrowerBalance = await getBalance(balanceHelper, borrowerAddress, "borrower");
 
@@ -286,7 +293,7 @@ describe("************ Loans ******************", () => {
         // Final data
         const endBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token2Id);
         const endMarketTokenAmount = await nft.balanceOf(market.address, token2Id);
-        const endLoans = await marketUtil.fetchPositionsByState(4);
+        const endNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
         const endLenderBalance = await getBalance(balanceHelper, lenderAddress, "lender");
         const endBorrowerBalance = await getBalance(balanceHelper, borrowerAddress, "borrower");
 
@@ -299,6 +306,38 @@ describe("************ Loans ******************", () => {
             .gt(Number(iniBorrowerBalance.sub(loanAmount).sub(feeAmount).sub(maxGasFee)));
         expect(endBorrowerTokenAmount - iniBorrowerTokenAmount).to.equal(token2Amount);
         expect(iniMarketTokenAmount - endMarketTokenAmount).to.equal(token2Amount);
-        expect(endLoans.length).to.equal(iniLoans.length - 1);
+        expect(endNumLoans).to.equal(iniNumLoans - 1);
     });
+
+    async function getAllAddressPositions(targetAddress) {
+        let page = 1;
+        let _totalPages = 0;
+        const totalPositions = [];
+        do {
+            [positions, totalPages] = await marketUtil.fetchAddressPositions(
+                targetAddress,
+                100,
+                page
+            );
+            totalPositions.push(...positions);
+            _totalPages = Number(totalPages);
+            page++;
+        } while (_totalPages >= page);
+
+        return totalPositions;
+    }
+
+    async function getAllAddressLoans(targetAddress) {
+        let page = 1;
+        let _totalPages = 0;
+        const totalLoans = [];
+        do {
+            [loans, totalPages] = await marketUtil.fetchAddressLoans(targetAddress, 100, page);
+            totalLoans.push(...loans);
+            _totalPages = Number(totalPages);
+            page++;
+        } while (_totalPages >= page);
+
+        return totalLoans;
+    }
 });

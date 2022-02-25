@@ -82,7 +82,6 @@ contract MarketMigrationSample is ISqwidMigrator {
     constructor(address marketplace_, ISqwidMarketplaceUtil marketplaceUtil_) {
         marketplace = marketplace_;
         marketplaceUtil = marketplaceUtil_;
-        _getInitialData(marketplaceUtil_);
     }
 
     function positionClosed(
@@ -152,19 +151,18 @@ contract MarketMigrationSample is ISqwidMigrator {
         return (addresses, amounts);
     }
 
-    function _getInitialData(ISqwidMarketplaceUtil marketplaceUtil_) private {
-        // Items
-        ISqwidMarketplaceUtil.ItemResponse[] memory items = marketplaceUtil_.fetchAllItems();
-
+    function copyItems(uint256 pageSize, uint256 page) external {
+        (ISqwidMarketplaceUtil.ItemResponse[] memory items, ) = marketplaceUtil.fetchItems(
+            pageSize,
+            page
+        );
         for (uint256 i; i < items.length; i++) {
             ISqwidMarketplaceUtil.ItemResponse memory itemOld = items[i];
-
             idToItem[itemOld.itemId].itemId = itemOld.itemId;
             idToItem[itemOld.itemId].nftContract = itemOld.nftContract;
             idToItem[itemOld.itemId].tokenId = itemOld.tokenId;
             idToItem[itemOld.itemId].creator = itemOld.creator;
             idToItem[itemOld.itemId].positionCount = itemOld.positions.length;
-
             for (uint256 j; j < itemOld.sales.length; j++) {
                 ISqwidMarketplace.ItemSale memory sale = itemOld.sales[j];
                 idToItem[itemOld.itemId].sales.push(
@@ -172,91 +170,167 @@ contract MarketMigrationSample is ISqwidMigrator {
                 );
             }
         }
+    }
 
+    function copyAvailable() external {
+        uint256 currPage = 1;
+        uint256 _totalPages;
         // Available positions
-        ISqwidMarketplaceUtil.PositionResponse[] memory availablePositions = marketplaceUtil_
-            .fetchPositionsByState(ISqwidMarketplace.PositionState.Available);
-
-        for (uint256 i; i < availablePositions.length; i++) {
-            ISqwidMarketplaceUtil.PositionResponse memory positionOld = availablePositions[i];
-            idToPosition[positionOld.positionId] = _mapPosition(
-                positionOld,
-                PositionState.Available
-            );
-        }
-
-        // Regular sale positions
-        ISqwidMarketplaceUtil.PositionResponse[] memory salePositions = marketplaceUtil_
-            .fetchPositionsByState(ISqwidMarketplace.PositionState.RegularSale);
-
-        for (uint256 i; i < salePositions.length; i++) {
-            ISqwidMarketplaceUtil.PositionResponse memory positionOld = salePositions[i];
-            idToPosition[positionOld.positionId] = _mapPosition(
-                positionOld,
-                PositionState.RegularSale
-            );
-        }
-
-        // Auction positions
-        ISqwidMarketplaceUtil.PositionResponse[] memory auctions = marketplaceUtil_
-            .fetchPositionsByState(ISqwidMarketplace.PositionState.Auction);
-
-        for (uint256 i; i < auctions.length; i++) {
-            ISqwidMarketplaceUtil.PositionResponse memory positionOld = auctions[i];
-            idToPosition[positionOld.positionId] = _mapPosition(positionOld, PositionState.Auction);
-
-            idToAuctionData[positionOld.positionId].deadline = positionOld.auctionData.deadline;
-            idToAuctionData[positionOld.positionId].highestBid = positionOld.auctionData.highestBid;
-            idToAuctionData[positionOld.positionId].highestBidder = positionOld
-                .auctionData
-                .highestBidder;
-
-            (address[] memory addresses, uint256[] memory amounts) = marketplaceUtil_
-                .fetchAuctionBids(positionOld.positionId);
-            idToAuctionData[positionOld.positionId].totalAddresses = addresses.length;
-            for (uint256 j; j < addresses.length; j++) {
-                idToAuctionData[positionOld.positionId].indexToAddress[j] = addresses[j];
-                idToAuctionData[positionOld.positionId].addressToAmount[addresses[j]] = amounts[j];
+        currPage = 1;
+        do {
+            (
+                ISqwidMarketplaceUtil.PositionResponse[] memory availablePositions,
+                uint256 totalPages
+            ) = marketplaceUtil.fetchPositionsByState(
+                    ISqwidMarketplace.PositionState.Available,
+                    100,
+                    currPage
+                );
+            for (uint256 i; i < availablePositions.length; i++) {
+                ISqwidMarketplaceUtil.PositionResponse memory positionOld = availablePositions[i];
+                idToPosition[positionOld.positionId] = _mapPosition(
+                    positionOld,
+                    PositionState.Available
+                );
             }
-        }
+            _totalPages = totalPages;
+            currPage++;
+        } while (_totalPages >= currPage);
+    }
 
-        // Raffle positions
-        ISqwidMarketplaceUtil.PositionResponse[] memory raffles = marketplaceUtil_
-            .fetchPositionsByState(ISqwidMarketplace.PositionState.Raffle);
-
-        for (uint256 i; i < raffles.length; i++) {
-            ISqwidMarketplaceUtil.PositionResponse memory positionOld = raffles[i];
-            idToPosition[positionOld.positionId] = _mapPosition(positionOld, PositionState.Raffle);
-
-            idToRaffleData[positionOld.positionId].deadline = positionOld.raffleData.deadline;
-            idToRaffleData[positionOld.positionId].totalValue = positionOld.raffleData.totalValue;
-            idToRaffleData[positionOld.positionId].totalAddresses = positionOld
-                .raffleData
-                .totalAddresses;
-
-            (address[] memory addresses, uint256[] memory amounts) = marketplaceUtil_
-                .fetchRaffleEntries(positionOld.positionId);
-            for (uint256 j; j < addresses.length; j++) {
-                idToRaffleData[positionOld.positionId].indexToAddress[j] = addresses[j];
-                idToRaffleData[positionOld.positionId].addressToAmount[addresses[j]] = amounts[j];
+    function copyRegular() external {
+        uint256 currPage = 1;
+        uint256 _totalPages;
+        currPage = 1;
+        do {
+            (
+                ISqwidMarketplaceUtil.PositionResponse[] memory salePositions,
+                uint256 totalPages
+            ) = marketplaceUtil.fetchPositionsByState(
+                    ISqwidMarketplace.PositionState.RegularSale,
+                    100,
+                    currPage
+                );
+            for (uint256 i; i < salePositions.length; i++) {
+                ISqwidMarketplaceUtil.PositionResponse memory positionOld = salePositions[i];
+                idToPosition[positionOld.positionId] = _mapPosition(
+                    positionOld,
+                    PositionState.RegularSale
+                );
             }
-        }
+            _totalPages = totalPages;
+            currPage++;
+        } while (_totalPages >= currPage);
+    }
 
-        // Loan positions
-        ISqwidMarketplaceUtil.PositionResponse[] memory loans = marketplaceUtil_
-            .fetchPositionsByState(ISqwidMarketplace.PositionState.Loan);
+    function copyAuctions() external {
+        uint256 currPage = 1;
+        uint256 _totalPages;
+        do {
+            (
+                ISqwidMarketplaceUtil.PositionResponse[] memory auctions,
+                uint256 totalPages
+            ) = marketplaceUtil.fetchPositionsByState(
+                    ISqwidMarketplace.PositionState.Auction,
+                    100,
+                    currPage
+                );
+            for (uint256 i; i < auctions.length; i++) {
+                ISqwidMarketplaceUtil.PositionResponse memory positionOld = auctions[i];
+                idToPosition[positionOld.positionId] = _mapPosition(
+                    positionOld,
+                    PositionState.Auction
+                );
+                idToAuctionData[positionOld.positionId].deadline = positionOld.auctionData.deadline;
+                idToAuctionData[positionOld.positionId].highestBid = positionOld
+                    .auctionData
+                    .highestBid;
+                idToAuctionData[positionOld.positionId].highestBidder = positionOld
+                    .auctionData
+                    .highestBidder;
+                (address[] memory addresses, uint256[] memory amounts) = marketplaceUtil
+                    .fetchAuctionBids(positionOld.positionId);
+                idToAuctionData[positionOld.positionId].totalAddresses = addresses.length;
+                for (uint256 j; j < addresses.length; j++) {
+                    idToAuctionData[positionOld.positionId].indexToAddress[j] = addresses[j];
+                    idToAuctionData[positionOld.positionId].addressToAmount[addresses[j]] = amounts[
+                        j
+                    ];
+                }
+            }
+            _totalPages = totalPages;
+            currPage++;
+        } while (_totalPages >= currPage);
+    }
 
-        for (uint256 i; i < loans.length; i++) {
-            ISqwidMarketplaceUtil.PositionResponse memory positionOld = loans[i];
-            idToPosition[positionOld.positionId] = _mapPosition(positionOld, PositionState.Loan);
-            idToLoanData[positionOld.positionId] = LoanData(
-                positionOld.loanData.loanAmount,
-                positionOld.loanData.feeAmount,
-                positionOld.loanData.numMinutes,
-                positionOld.loanData.deadline,
-                positionOld.loanData.lender
-            );
-        }
+    function copyRaffles() external {
+        uint256 currPage = 1;
+        uint256 _totalPages;
+        do {
+            (
+                ISqwidMarketplaceUtil.PositionResponse[] memory raffles,
+                uint256 totalPages
+            ) = marketplaceUtil.fetchPositionsByState(
+                    ISqwidMarketplace.PositionState.Raffle,
+                    100,
+                    currPage
+                );
+            for (uint256 i; i < raffles.length; i++) {
+                ISqwidMarketplaceUtil.PositionResponse memory positionOld = raffles[i];
+                idToPosition[positionOld.positionId] = _mapPosition(
+                    positionOld,
+                    PositionState.Raffle
+                );
+                idToRaffleData[positionOld.positionId].deadline = positionOld.raffleData.deadline;
+                idToRaffleData[positionOld.positionId].totalValue = positionOld
+                    .raffleData
+                    .totalValue;
+                idToRaffleData[positionOld.positionId].totalAddresses = positionOld
+                    .raffleData
+                    .totalAddresses;
+                (address[] memory addresses, uint256[] memory amounts) = marketplaceUtil
+                    .fetchRaffleEntries(positionOld.positionId);
+                for (uint256 j; j < addresses.length; j++) {
+                    idToRaffleData[positionOld.positionId].indexToAddress[j] = addresses[j];
+                    idToRaffleData[positionOld.positionId].addressToAmount[addresses[j]] = amounts[
+                        j
+                    ];
+                }
+            }
+            _totalPages = totalPages;
+            currPage++;
+        } while (_totalPages >= currPage);
+    }
+
+    function copyLoans() external {
+        uint256 currPage = 1;
+        uint256 _totalPages;
+        do {
+            (
+                ISqwidMarketplaceUtil.PositionResponse[] memory loans,
+                uint256 totalPages
+            ) = marketplaceUtil.fetchPositionsByState(
+                    ISqwidMarketplace.PositionState.Loan,
+                    100,
+                    currPage
+                );
+            for (uint256 i; i < loans.length; i++) {
+                ISqwidMarketplaceUtil.PositionResponse memory positionOld = loans[i];
+                idToPosition[positionOld.positionId] = _mapPosition(
+                    positionOld,
+                    PositionState.Loan
+                );
+                idToLoanData[positionOld.positionId] = LoanData(
+                    positionOld.loanData.loanAmount,
+                    positionOld.loanData.feeAmount,
+                    positionOld.loanData.numMinutes,
+                    positionOld.loanData.deadline,
+                    positionOld.loanData.lender
+                );
+            }
+            _totalPages = totalPages;
+            currPage++;
+        } while (_totalPages >= currPage);
     }
 
     function _mapPosition(

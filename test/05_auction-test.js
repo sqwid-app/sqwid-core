@@ -53,7 +53,7 @@ describe("************ Auctions ******************", () => {
         console.log("\tapproval created");
 
         // Initial data
-        const iniAuctions = await marketUtil.fetchPositionsByState(2);
+        const iniNumAuctions = Number(await marketUtil.fetchNumberPositionsByState(2));
 
         // Create token and add to the market
         console.log("\tcreating market item...");
@@ -68,18 +68,21 @@ describe("************ Auctions ******************", () => {
 
         // Create auction
         console.log("\tseller creating auction...");
-        await market.connect(seller).createItemAuction(itemId, tokensAmount, numMinutes, minBid);
+        const tx = await market
+            .connect(seller)
+            .createItemAuction(itemId, tokensAmount, numMinutes, minBid);
+        const receipt = await tx.wait();
+        auctionId = receipt.events[1].args.positionId;
         console.log("\tauction created.");
 
         // Final data
-        const endAuctions = await marketUtil.fetchPositionsByState(2);
-        const auction = endAuctions.at(-1);
-        auctionId = auction.positionId;
+        const auction = await marketUtil.fetchPosition(auctionId);
+        const endNumAuctions = Number(await marketUtil.fetchNumberPositionsByState(2));
         const tokenUri = await nft.uri(tokenId);
         deadline = new Date(auction.auctionData.deadline * 1000);
 
         // Evaluate results
-        expect(endAuctions.length).to.equal(iniAuctions.length + 1);
+        expect(endNumAuctions).to.equal(iniNumAuctions + 1);
         expect(tokenUri).to.equal("https://fake-uri.com");
         expect(auction.item.nftContract).to.equal(nft.address);
         expect(Number(auction.item.tokenId)).to.equal(tokenId);
@@ -105,6 +108,7 @@ describe("************ Auctions ******************", () => {
         // Initial data
         const iniBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
         const iniMarketBalance = await getBalance(balanceHelper, market.address, "market");
+        const iniBuyer1NumBids = Number(await marketUtil.fetchAddressNumberBids(buyer1Address));
 
         // Creates bid
         console.log("\tbuyer1 creating bid...");
@@ -117,6 +121,8 @@ describe("************ Auctions ******************", () => {
         const oldDeadline = deadline;
         const auctionData = (await marketUtil.fetchPosition(auctionId)).auctionData;
         deadline = new Date(auctionData.deadline * 1000);
+        const endBuyer1NumBids = Number(await marketUtil.fetchAddressNumberBids(buyer1Address));
+        const buyer1bids = await getAllAddressBids(buyer1Address);
 
         // Evaluate results
         expect(deadline.getTime()).equals(oldDeadline.getTime());
@@ -126,6 +132,9 @@ describe("************ Auctions ******************", () => {
             .to.lte(Number(iniBuyer1Balance.sub(bid2Amount)))
             .gt(Number(iniBuyer1Balance.sub(bid2Amount).sub(maxGasFee)));
         expect(Number(endMarketBalance)).to.equal(Number(iniMarketBalance.add(bid2Amount)));
+        expect(Number(buyer1bids.at(-1).bidAmount)).to.equal(Number(bid2Amount));
+        expect(Number(buyer1bids.at(-1).auction.positionId)).to.equal(Number(auctionId));
+        expect(endBuyer1NumBids - iniBuyer1NumBids).to.equal(1);
     });
 
     it("Should not allow bids equal or lower than highest bid", async () => {
@@ -225,9 +234,8 @@ describe("************ Auctions ******************", () => {
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const iniBuyer2MarketBalance = await market.addressBalance(buyer2Address);
         const iniMarketBalance = await getBalance(balanceHelper, market.address, "market");
-        const auctions = await marketUtil.fetchPositionsByState(2);
-        const iniNumAuctions = auctions.length;
-        const auction = auctions.at(-1);
+        const iniNumAuctions = Number(await marketUtil.fetchNumberPositionsByState(2));
+        const auction = await marketUtil.fetchPosition(await market.currentPositionId());
         itemId = auction.item.itemId;
         if (!auctionId) {
             // Set data if test has not been run directly after the other ones
@@ -264,7 +272,7 @@ describe("************ Auctions ******************", () => {
             (bid2Amount.add(bid5Amount).sub(royaltiesAmount) * marketFee) / 10000;
         const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
         const endBuyer1TokenAmount = await nft.balanceOf(buyer1Address, tokenId);
-        const endNumAuctions = (await marketUtil.fetchPositionsByState(2)).length;
+        const endNumAuctions = Number(await marketUtil.fetchNumberPositionsByState(2));
 
         // Evaluate results
         expect(endItem.sales[0].seller).to.equal(sellerAddress);
@@ -324,7 +332,7 @@ describe("************ Auctions ******************", () => {
         // Initial data
         const iniBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
         const iniBuyer1TokenAmount = Number(await nft.balanceOf(buyer1Address, tokenId));
-        const iniNumAuctions = (await marketUtil.fetchPositionsByState(2)).length;
+        const iniNumAuctions = Number(await marketUtil.fetchNumberPositionsByState(2));
 
         // Approve market contract for this address
         console.log("\tcreating approval for market contract...");
@@ -346,7 +354,7 @@ describe("************ Auctions ******************", () => {
         );
 
         // Wait until deadline
-        const auctionData = (await marketUtil.fetchPositionsByState(2)).at(-1).auctionData;
+        const auctionData = (await getAllPositionsByState(2)).at(-1).auctionData;
         deadline = new Date(auctionData.deadline * 1000);
         const timeUntilDeadline = deadline - new Date();
         console.log(`\ttime until deadline: ${timeUntilDeadline / 1000} secs.`);
@@ -364,7 +372,7 @@ describe("************ Auctions ******************", () => {
         // Final data
         const endBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
         const endBuyer1TokenAmount = Number(await nft.balanceOf(buyer1Address, tokenId));
-        const endNumAuctions = (await marketUtil.fetchPositionsByState(2)).length;
+        const endNumAuctions = Number(await marketUtil.fetchNumberPositionsByState(2));
 
         // Evaluate results
         expect(Number(endBuyer1Balance))
@@ -373,4 +381,32 @@ describe("************ Auctions ******************", () => {
         expect(endBuyer1TokenAmount).to.equal(iniBuyer1TokenAmount);
         expect(endNumAuctions).to.equal(iniNumAuctions);
     });
+
+    async function getAllPositionsByState(state) {
+        let page = 1;
+        let _totalPages = 0;
+        const totalPositions = [];
+        do {
+            [positions, totalPages] = await marketUtil.fetchPositionsByState(state, 100, page);
+            totalPositions.push(...positions);
+            _totalPages = Number(totalPages);
+            page++;
+        } while (_totalPages >= page);
+
+        return totalPositions;
+    }
+
+    async function getAllAddressBids(targetAddress) {
+        let page = 1;
+        let _totalPages = 0;
+        const totalBids = [];
+        do {
+            [bids, totalPages] = await marketUtil.fetchAddressBids(targetAddress, 100, page);
+            totalBids.push(...bids);
+            _totalPages = Number(totalPages);
+            page++;
+        } while (_totalPages >= page);
+
+        return totalBids;
+    }
 });

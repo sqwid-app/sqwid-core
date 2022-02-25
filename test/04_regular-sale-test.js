@@ -73,8 +73,8 @@ describe("************ Regular sale ******************", () => {
 
     it("Should put new nft on sale", async () => {
         // Initial data
-        const iniPositionsOnRegSale = await marketUtil.fetchPositionsByState(1);
-        const iniItems = await marketUtil.fetchAllItems();
+        const iniNumPositionsOnRegSale = Number(await marketUtil.fetchNumberPositionsByState(1));
+        const iniNumItems = Number(await marketUtil.fetchNumberItems());
 
         // Create token and add to the market
         console.log("\tcreating market item...");
@@ -97,22 +97,20 @@ describe("************ Regular sale ******************", () => {
         // Results
         const position = await marketUtil.fetchPosition(position2Id);
         const item = await marketUtil.fetchItem(item2Id);
-        const endPositionsOnRegSale = await marketUtil.fetchPositionsByState(1);
-        const endItems = await marketUtil.fetchAllItems();
+        const endNumPositionsOnRegSale = Number(await marketUtil.fetchNumberPositionsByState(1));
+        const endNumItems = Number(await marketUtil.fetchNumberItems());
 
         // Evaluate results
         expect(Number(position.positionId)).to.equal(position2Id);
         expect(Number(position.item.itemId)).to.equal(item2Id);
-        expect(endItems.length - iniItems.length).to.equal(1);
-        expect(Number(endItems.at(-1).itemId)).to.equal(item2Id);
+        expect(endNumItems - iniNumItems).to.equal(1);
         expect(position.owner).to.equal(sellerAddress);
         expect(Number(position.amount)).to.equal(10);
         expect(Number(position.price)).to.equal(Number(salePrice));
         expect(Number(position.marketFee)).to.equal(Number(marketFee));
         expect(Number(position.state)).to.equal(1); // RegularSale = 1
         expect(Number(item.positions.at(-1).positionId)).to.equal(position2Id);
-        expect(endPositionsOnRegSale.length - iniPositionsOnRegSale.length).to.equal(1);
-        expect(Number(endPositionsOnRegSale.at(-1).positionId)).to.equal(position2Id);
+        expect(endNumPositionsOnRegSale - iniNumPositionsOnRegSale).to.equal(1);
     });
 
     it("Should create sale", async () => {
@@ -122,7 +120,7 @@ describe("************ Regular sale ******************", () => {
         const iniArtistBalance = await getBalance(balanceHelper, artistAddress, "artist");
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const iniBuyer1TokenAmount = await nft.balanceOf(buyer1Address, token1Id);
-        const iniAvailablePositions = await marketUtil.fetchPositionsByState(0);
+        const iniNumAvailablePositions = Number(await marketUtil.fetchNumberPositionsByState(0));
 
         // Buy NFT
         console.log("\tbuyer1 buying NFT from seller...");
@@ -140,7 +138,7 @@ describe("************ Regular sale ******************", () => {
         const marketFeeAmountRaw = ((salePrice - royaltiesAmount) * marketFee) / 10000;
         const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
         const item = await marketUtil.fetchItem(item1Id);
-        const endAvailablePositions = await marketUtil.fetchPositionsByState(0);
+        const endNumAvailablePositions = Number(await marketUtil.fetchNumberPositionsByState(0));
 
         // Evaluate results
         expect(endBuyer1TokenAmount - iniBuyer1TokenAmount).to.equal(1);
@@ -161,7 +159,7 @@ describe("************ Regular sale ******************", () => {
         expect(item.sales[0].seller).to.equal(sellerAddress);
         expect(item.sales[0].buyer).to.equal(buyer1Address);
         expect(Number(item.sales[0].price)).to.equal(Number(salePrice));
-        expect(endAvailablePositions.length - iniAvailablePositions.length).to.equal(1);
+        expect(endNumAvailablePositions - iniNumAvailablePositions).to.equal(1);
     });
 
     it("Should allow market owner to withdraw fees", async () => {

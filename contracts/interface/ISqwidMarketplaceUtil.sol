@@ -27,26 +27,55 @@ interface ISqwidMarketplaceUtil {
         ISqwidMarketplace.LoanData loanData;
     }
 
+    struct AuctionBidded {
+        PositionResponse auction;
+        uint256 bidAmount;
+    }
+
+    struct RaffleEntered {
+        PositionResponse raffle;
+        uint256 enteredAmount;
+    }
+
+    function setMarketContractAddress(ISqwidMarketplace marketplace_) external;
+
     function fetchItem(uint256 itemId) external view returns (ItemResponse memory);
 
-    function fetchAllItems() external view returns (ItemResponse[] memory);
+    function fetchNumberItems() external view returns (uint256);
 
-    function fetchAddressItemsCreated(address targetAddress)
+    function fetchItems(uint256 pageSize, uint256 pageNumber)
         external
         view
-        returns (ItemResponse[] memory);
+        returns (ItemResponse[] memory items, uint256 totalPages);
+
+    function fetchAddressNumberItemsCreated(address targetAddress) external view returns (uint256);
+
+    function fetchAddressItemsCreated(
+        address targetAddress,
+        uint256 pageSize,
+        uint256 pageNumber
+    ) external view returns (ItemResponse[] memory items, uint256 totalPages);
 
     function fetchPosition(uint256 positionId) external view returns (PositionResponse memory);
 
-    function fetchAddressPositions(address targetAddress)
-        external
-        view
-        returns (PositionResponse[] memory);
+    function fetchAddressNumberPositions(address targetAddress) external view returns (uint256);
 
-    function fetchPositionsByState(ISqwidMarketplace.PositionState state)
+    function fetchAddressPositions(
+        address targetAddress,
+        uint256 pageSize,
+        uint256 pageNumber
+    ) external view returns (PositionResponse[] memory positions, uint256 totalPages);
+
+    function fetchNumberPositionsByState(ISqwidMarketplace.PositionState state)
         external
         view
-        returns (PositionResponse[] memory);
+        returns (uint256);
+
+    function fetchPositionsByState(
+        ISqwidMarketplace.PositionState state,
+        uint256 pageSize,
+        uint256 pageNumber
+    ) external view returns (PositionResponse[] memory positions, uint256 totalPages);
 
     function fetchAuctionBids(uint256 positionId)
         external
@@ -57,4 +86,28 @@ interface ISqwidMarketplaceUtil {
         external
         view
         returns (address[] memory, uint256[] memory);
+
+    function fetchAddressNumberBids(address targetAddress) external view returns (uint256);
+
+    function fetchAddressBids(
+        address targetAddress,
+        uint256 pageSize,
+        uint256 pageNumber
+    ) external view returns (AuctionBidded[] memory bids, uint256 totalPages);
+
+    function fetchAddressNumberRaffles(address targetAddress) external view returns (uint256);
+
+    function fetchAddressRaffles(
+        address targetAddress,
+        uint256 pageSize,
+        uint256 pageNumber
+    ) external view returns (RaffleEntered[] memory raffles, uint256 totalPages);
+
+    function fetchAddressNumberLoans(address targetAddress) external view returns (uint256);
+
+    function fetchAddressLoans(
+        address targetAddress,
+        uint256 pageSize,
+        uint256 pageNumber
+    ) external view returns (PositionResponse[] memory loans, uint256 totalPages);
 }
