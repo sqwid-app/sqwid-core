@@ -59,15 +59,44 @@ describe("************ Migration ******************", () => {
     });
 
     it("Should migrate existing data to new market contact", async () => {
+        console.log("\tSetting migration counters.");
+        const currItemId = Number(await market.currentItemId());
+        const currPositionId = Number(await market.currentPositionId());
+        await migration.setCounters(currItemId, currPositionId);
+        expect(Number(await migration.itemIds())).to.equal(currItemId);
+        expect(Number(await migration.positionIds())).to.equal(currPositionId);
+
+        const totalItems = Number(await marketUtil.fetchNumberItems());
+        console.log(`***** Migrating ${totalItems} items *****`);
+
         const itemsOld = [];
         let itemsPage = 1;
         let itemsTotalPages = 0;
+        const itemsPerPage = 15;
         do {
-            [items, totalPages] = await marketUtil.fetchItems(25, itemsPage);
+            [items, totalPages] = await marketUtil.fetchItems(itemsPerPage, itemsPage);
             itemsOld.push(...items);
-            totalPages_ = Number(itemsTotalPages);
+            const submitItems = items.map((item) => {
+                return [
+                    item.itemId,
+                    item.nftContract,
+                    item.tokenId,
+                    item.creator,
+                    item.positions.length,
+                    item.sales,
+                ];
+            });
+            itemsTotalPages = Number(totalPages);
+            const ini = (itemsPage - 1) * itemsPerPage + 1;
+            const end = ini + items.length - 1;
             itemsPage++;
-        } while (itemsTotalPages > itemsPage + 1);
+            console.log(`\tadding items ${ini} to ${end}...`);
+            await migration.setItems(submitItems);
+            console.log(`\tItems migrated.`);
+        } while (itemsTotalPages >= itemsPage);
+
+        expect(itemsOld.length).to.equal(totalItems);
+        expect(currItemId).to.equal(totalItems);
 
         itemsOld.forEach(async (itemOld) => {
             const itemNew = await migration.idToItem(itemOld.itemId);
@@ -86,70 +115,44 @@ describe("************ Migration ******************", () => {
             });
         });
 
-        const availablePositions = await getAllPositionsByState(0);
-        availablePositions.forEach(async (positionOld) => {
-            const position = await migration.idToPosition(positionOld.positionId);
-            expect(Number(position.positionId)).to.equal(Number(positionOld.positionId));
-            expect(Number(position.itemId)).to.equal(Number(positionOld.item.itemId));
-            expect(position.owner).to.equal(positionOld.owner);
-            expect(Number(position.amount)).to.equal(Number(positionOld.amount));
-            expect(Number(position.price)).to.equal(Number(positionOld.price));
-            expect(Number(position.marketFee)).to.equal(Number(positionOld.marketFee));
-            expect(position.state).to.equal(positionOld.state);
-        });
+        const totalAvailPos = Number(await marketUtil.fetchNumberPositionsByState(0));
+        console.log(`***** Migrating ${totalAvailPos} positions *****`);
 
-        const onSale = await getAllPositionsByState(1);
-        onSale.forEach(async (positionOld) => {
-            const position = await migration.idToPosition(positionOld.positionId);
-            expect(Number(position.positionId)).to.equal(Number(positionOld.positionId));
-            expect(Number(position.itemId)).to.equal(Number(positionOld.item.itemId));
-            expect(position.owner).to.equal(positionOld.owner);
-            expect(Number(position.amount)).to.equal(Number(positionOld.amount));
-            expect(Number(position.price)).to.equal(Number(positionOld.price));
-            expect(Number(position.marketFee)).to.equal(Number(positionOld.marketFee));
-            expect(position.state).to.equal(positionOld.state);
-        });
-
-        const auctions = await getAllPositionsByState(2);
-        auctions.forEach(async (positionOld) => {
-            const position = await migration.idToPosition(positionOld.positionId);
-            const auctionData = await migration.idToAuctionData(positionOld.positionId);
-            const [auctionAddrOld, auctionAmountsOld] = await marketUtil.fetchAuctionBids(
-                positionOld.positionId
+        const availPosOld = [];
+        let avilPosPage = 1;
+        let avilPosTotalPages = 0;
+        const positionsPerPage = 100;
+        do {
+            [positions, totalPages] = await marketUtil.fetchPositionsByState(
+                0,
+                positionsPerPage,
+                avilPosPage
             );
-            const [auctionAddrNew, auctionAmountsNew] = await migration.fetchAuctionBids(
-                positionOld.positionId
-            );
-            expect(Number(position.positionId)).to.equal(Number(positionOld.positionId));
-            expect(Number(position.itemId)).to.equal(Number(positionOld.item.itemId));
-            expect(position.owner).to.equal(positionOld.owner);
-            expect(Number(position.amount)).to.equal(Number(positionOld.amount));
-            expect(Number(position.price)).to.equal(Number(positionOld.price));
-            expect(Number(position.marketFee)).to.equal(Number(positionOld.marketFee));
-            expect(position.state).to.equal(positionOld.state);
-            expect(auctionData.deadline).to.equal(positionOld.auctionData.deadline);
-            expect(Number(auctionData.minBid)).to.equal(Number(positionOld.auctionData.minBid));
-            expect(auctionData.highestBidder).to.equal(positionOld.auctionData.highestBidder);
-            expect(Number(auctionData.highestBid)).to.equal(
-                Number(positionOld.auctionData.highestBid)
-            );
-            expect(auctionAddrNew.length).to.equal(auctionAddrOld.length);
-            auctionAddrOld.forEach((addr, index) => {
-                expect(addr).to.equal(auctionAddrNew[index]);
-                expect(auctionAmountsOld[index]).to.equal(auctionAmountsNew[index]);
+            availPosOld.push(...positions);
+            const submitPositions = positions.map((position) => {
+                return [
+                    position.positionId,
+                    position.item.itemId,
+                    position.owner,
+                    position.amount,
+                    position.price,
+                    position.marketFee,
+                    position.state,
+                ];
             });
-        });
+            avilPosTotalPages = Number(totalPages);
+            const ini = (avilPosPage - 1) * positionsPerPage + 1;
+            const end = ini + positions.length - 1;
+            avilPosPage++;
+            console.log(`\tadding positions ${ini} to ${end}...`);
+            await migration.setPositions(submitPositions);
+            console.log(`\tPositions migrated.`);
+        } while (avilPosTotalPages >= avilPosPage);
 
-        const raffles = await getAllPositionsByState(3);
-        raffles.forEach(async (positionOld) => {
+        expect(availPosOld.length).to.equal(totalAvailPos);
+
+        availPosOld.forEach(async (positionOld) => {
             const position = await migration.idToPosition(positionOld.positionId);
-            const raffleData = await migration.idToRaffleData(positionOld.positionId);
-            const [raffleAddrOld, raffleAmountsOld] = await marketUtil.fetchRaffleEntries(
-                positionOld.positionId
-            );
-            const [raffleAddrNew, raffleAmountsNew] = await migration.fetchRaffleEntries(
-                positionOld.positionId
-            );
             expect(Number(position.positionId)).to.equal(Number(positionOld.positionId));
             expect(Number(position.itemId)).to.equal(Number(positionOld.item.itemId));
             expect(position.owner).to.equal(positionOld.owner);
@@ -157,34 +160,6 @@ describe("************ Migration ******************", () => {
             expect(Number(position.price)).to.equal(Number(positionOld.price));
             expect(Number(position.marketFee)).to.equal(Number(positionOld.marketFee));
             expect(position.state).to.equal(positionOld.state);
-            expect(raffleData.deadline).to.equal(positionOld.raffleData.deadline);
-            expect(Number(raffleData.totalValue)).to.equal(
-                Number(positionOld.raffleData.totalValue)
-            );
-            expect(raffleData.totalAddresses).to.equal(positionOld.raffleData.totalAddresses);
-            expect(raffleAddrNew.length).to.equal(raffleAddrOld.length);
-            raffleAddrOld.forEach((addr, index) => {
-                expect(addr).to.equal(raffleAddrNew[index]);
-                expect(raffleAmountsOld[index]).to.equal(raffleAmountsNew[index]);
-            });
-        });
-
-        const loans = await getAllPositionsByState(4);
-        loans.forEach(async (positionOld) => {
-            const position = await migration.idToPosition(positionOld.positionId);
-            const loanData = await migration.idToLoanData(positionOld.positionId);
-            expect(Number(position.positionId)).to.equal(Number(positionOld.positionId));
-            expect(Number(position.itemId)).to.equal(Number(positionOld.item.itemId));
-            expect(position.owner).to.equal(positionOld.owner);
-            expect(Number(position.amount)).to.equal(Number(positionOld.amount));
-            expect(Number(position.price)).to.equal(Number(positionOld.price));
-            expect(Number(position.marketFee)).to.equal(Number(positionOld.marketFee));
-            expect(position.state).to.equal(positionOld.state);
-            expect(Number(loanData.loanAmount)).to.equal(Number(positionOld.loanData.loanAmount));
-            expect(Number(loanData.feeAmount)).to.equal(Number(positionOld.loanData.feeAmount));
-            expect(Number(loanData.numMinutes)).to.equal(Number(positionOld.loanData.numMinutes));
-            expect(loanData.deadline).to.equal(positionOld.loanData.deadline);
-            expect(loanData.lender).to.equal(positionOld.loanData.lender);
         });
     });
 
@@ -194,17 +169,33 @@ describe("************ Migration ******************", () => {
 
         // Buy NFT
         console.log("\tbuyer1 buying NFT from seller...");
-        await market.connect(buyer).createSale(positionId, 1, { value: salePrice });
+        const tx = await market.connect(buyer).createSale(positionId, 1, { value: salePrice });
+        const receipt = await tx.wait();
+        const updatedPositionId = receipt.events[4].args.positionId;
         console.log("\tNFT bought");
 
         // Get sales from migration contract
         const sales = await migration.connect(owner).fetchItemSales(itemId);
         const lastSale = sales.at(-1);
 
+        // Get updated position
+        const updatedPositionOld = await market.fetchPosition(updatedPositionId);
+        const updatedPositionNew = await migration.idToPosition(updatedPositionId);
+
         expect(lastSale.seller).to.equal(sellerAddress);
         expect(lastSale.buyer).to.equal(buyerAddress);
         expect(Number(lastSale.price)).to.equal(Number(salePrice));
         expect(Number(lastSale.amount)).to.equal(1);
+
+        expect(Number(updatedPositionNew.positionId)).to.equal(
+            Number(updatedPositionOld.positionId)
+        );
+        expect(Number(updatedPositionNew.itemId)).to.equal(Number(updatedPositionOld.itemId));
+        expect(updatedPositionNew.owner).to.equal(updatedPositionOld.owner);
+        expect(Number(updatedPositionNew.amount)).to.equal(Number(updatedPositionOld.amount));
+        expect(Number(updatedPositionNew.price)).to.equal(Number(updatedPositionOld.price));
+        expect(Number(updatedPositionNew.marketFee)).to.equal(Number(updatedPositionOld.marketFee));
+        expect(Number(updatedPositionNew.state)).to.equal(Number(updatedPositionOld.state));
     });
 
     it("Should not put item on sale after migration", async () => {
@@ -216,18 +207,4 @@ describe("************ Migration ******************", () => {
 
         await market.connect(owner).setMigratorAddress(ethers.constants.AddressZero);
     });
-
-    async function getAllPositionsByState(state) {
-        let page = 1;
-        let _totalPages = 0;
-        const totalPositions = [];
-        do {
-            [positions, totalPages] = await marketUtil.fetchPositionsByState(state, 100, page);
-            totalPositions.push(...positions);
-            _totalPages = Number(totalPages);
-            page++;
-        } while (_totalPages >= page);
-
-        return totalPositions;
-    }
 });

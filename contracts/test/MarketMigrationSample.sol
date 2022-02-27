@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
+import "../../@openzeppelin/contracts/access/Ownable.sol";
 import "../../@openzeppelin/contracts/utils/Counters.sol";
 import "../interface/ISqwidMarketplaceUtil.sol";
 import "../interface/ISqwidMigrator.sol";
@@ -8,7 +9,7 @@ import "../interface/ISqwidMigrator.sol";
 /**
  * Sample contract that migrated all data from an active market contract.
  */
-contract MarketMigrationSample is ISqwidMigrator {
+contract MarketMigrationSample is ISqwidMigrator, Ownable {
     using Counters for Counters.Counter;
 
     enum PositionState {
@@ -71,6 +72,9 @@ contract MarketMigrationSample is ISqwidMigrator {
         address lender;
     }
 
+    Counters.Counter public itemIds;
+    Counters.Counter public positionIds;
+    mapping(PositionState => Counters.Counter) public stateToCounter;
     mapping(uint256 => Item) public idToItem;
     mapping(uint256 => Position) public idToPosition;
     mapping(uint256 => AuctionData) public idToAuctionData;
@@ -78,14 +82,74 @@ contract MarketMigrationSample is ISqwidMigrator {
     mapping(uint256 => LoanData) public idToLoanData;
     address public immutable marketplace;
     ISqwidMarketplaceUtil public immutable marketplaceUtil;
+    bool public initialized;
+
+    modifier notInitialized() {
+        require(!initialized, "Migration: Contract initialized");
+        _;
+    }
 
     constructor(address marketplace_, ISqwidMarketplaceUtil marketplaceUtil_) {
         marketplace = marketplace_;
         marketplaceUtil = marketplaceUtil_;
     }
 
+    /**
+     * Initializes contract after migrating data
+     */
+    function initialize() external onlyOwner {
+        initialized = true;
+    }
+
+    /**
+     * Migrates items from old contract.
+     */
+    function setItems(Item[] memory items) external onlyOwner notInitialized {
+        for (uint256 i = 0; i < items.length; i++) {
+            Item memory item = items[i];
+            idToItem[item.itemId].itemId = item.itemId;
+            idToItem[item.itemId].nftContract = item.nftContract;
+            idToItem[item.itemId].tokenId = item.tokenId;
+            idToItem[item.itemId].creator = item.creator;
+            idToItem[item.itemId].positionCount = item.positionCount;
+            for (uint256 j; j < item.sales.length; j++) {
+                idToItem[item.itemId].sales.push(item.sales[j]);
+            }
+        }
+    }
+
+    /**
+     * Migrates available positions from old contract.
+     */
+    function setPositions(Position[] memory positions) external onlyOwner notInitialized {
+        for (uint256 i = 0; i < positions.length; i++) {
+            idToPosition[positions[i].positionId] = positions[i];
+            stateToCounter[positions[i].state].increment();
+        }
+    }
+
+    /**
+     * Migrates item and position id counters from old contract.
+     */
+    function setCounters(uint256 _itemIds, uint256 _positionIds) external onlyOwner notInitialized {
+        itemIds.reset();
+        for (uint256 i = 1; i <= _itemIds; i++) {
+            itemIds.increment();
+        }
+
+        positionIds.reset();
+        for (uint256 i = 1; i <= _positionIds; i++) {
+            positionIds.increment();
+        }
+    }
+
+    /**
+     * Only available positions are migrated before initializing the new contract.
+     * When open positions (sales, auctions, raffles, loans) are closed, this function
+     * is called from old contract, and data is updated.
+     */
     function positionClosed(
-        uint256 positionId,
+        uint256 itemId,
         address receiver,
         bool saleCreated
     ) external override {
@@ -93,259 +157,76 @@ contract MarketMigrationSample is ISqwidMigrator {
 
         if (saleCreated) {
             // Retrieve last sale for the item
-            uint256 itemId = idToPosition[positionId].itemId;
             ISqwidMarketplaceUtil.ItemResponse memory item = marketplaceUtil.fetchItem(itemId);
             ISqwidMarketplace.ItemSale memory sale = item.sales[item.sales.length - 1];
 
             // Add sale to item
-            idToItem[itemId].sales.push(ItemSale(sale.seller, sale.buyer, sale.price, sale.amount));
+            idToItem[item.itemId].sales.push(
+                ItemSale(sale.seller, sale.buyer, sale.price, sale.amount)
+            );
         }
 
-        // TODO It would require to do all the necessary updates for the item, remove position
-        // (if is not a partial sale), create/update available position, etc
+        _updateAvailablePosition(itemId, receiver);
     }
 
+    /**
+     * Returns item sales.
+     */
     function fetchItemSales(uint256 itemId) external view returns (ItemSale[] memory) {
         return idToItem[itemId].sales;
     }
 
-    function fetchAuctionBids(uint256 positionId)
-        external
-        view
-        returns (address[] memory, uint256[] memory)
-    {
-        uint256 totalAddresses = idToAuctionData[positionId].totalAddresses;
-
-        // Initialize array
-        address[] memory addresses = new address[](totalAddresses);
-        uint256[] memory amounts = new uint256[](totalAddresses);
-
-        // Fill arrays
-        for (uint256 i; i < totalAddresses; i++) {
-            address currAddress = idToAuctionData[positionId].indexToAddress[i];
-            addresses[i] = currAddress;
-            amounts[i] = idToAuctionData[positionId].addressToAmount[currAddress];
-        }
-
-        return (addresses, amounts);
-    }
-
-    function fetchRaffleAmounts(uint256 positionId)
-        external
-        view
-        returns (address[] memory, uint256[] memory)
-    {
-        uint256 totalAddresses = idToRaffleData[positionId].totalAddresses;
-
-        // Initialize array
-        address[] memory addresses = new address[](totalAddresses);
-        uint256[] memory amounts = new uint256[](totalAddresses);
-
-        // Fill arrays
-        for (uint256 i; i < totalAddresses; i++) {
-            address currAddress = idToRaffleData[positionId].indexToAddress[i];
-            addresses[i] = currAddress;
-            amounts[i] = idToRaffleData[positionId].addressToAmount[currAddress];
-        }
-
-        return (addresses, amounts);
-    }
-
-    function copyItems(uint256 pageSize, uint256 page) external {
-        (ISqwidMarketplaceUtil.ItemResponse[] memory items, ) = marketplaceUtil.fetchItems(
-            pageSize,
-            page
+    /**
+     * Creates new position or updates amount in exising one for receiver of tokens.
+     */
+    function _updateAvailablePosition(uint256 itemId, address tokenOwner) private {
+        uint256 receiverPositionId;
+        uint256 amount = ISqwidERC1155(idToItem[itemId].nftContract).balanceOf(
+            tokenOwner,
+            idToItem[itemId].tokenId
         );
-        for (uint256 i; i < items.length; i++) {
-            ISqwidMarketplaceUtil.ItemResponse memory itemOld = items[i];
-            idToItem[itemOld.itemId].itemId = itemOld.itemId;
-            idToItem[itemOld.itemId].nftContract = itemOld.nftContract;
-            idToItem[itemOld.itemId].tokenId = itemOld.tokenId;
-            idToItem[itemOld.itemId].creator = itemOld.creator;
-            idToItem[itemOld.itemId].positionCount = itemOld.positions.length;
-            for (uint256 j; j < itemOld.sales.length; j++) {
-                ISqwidMarketplace.ItemSale memory sale = itemOld.sales[j];
-                idToItem[itemOld.itemId].sales.push(
-                    ItemSale(sale.seller, sale.buyer, sale.price, sale.amount)
-                );
-            }
+        Position memory position = _fetchAvalailablePosition(itemId, tokenOwner);
+        if (position.itemId != 0) {
+            receiverPositionId = position.itemId;
+            idToPosition[receiverPositionId].amount = amount;
+        } else {
+            positionIds.increment();
+            receiverPositionId = positionIds.current();
+            idToPosition[receiverPositionId] = Position(
+                receiverPositionId,
+                itemId,
+                payable(tokenOwner),
+                amount,
+                0,
+                0,
+                PositionState.Available
+            );
+
+            stateToCounter[PositionState.Available].increment();
+            idToItem[itemId].positionCount++;
         }
     }
 
-    function copyAvailable() external {
-        uint256 currPage = 1;
-        uint256 _totalPages;
-        // Available positions
-        currPage = 1;
-        do {
-            (
-                ISqwidMarketplaceUtil.PositionResponse[] memory availablePositions,
-                uint256 totalPages
-            ) = marketplaceUtil.fetchPositionsByState(
-                    ISqwidMarketplace.PositionState.Available,
-                    100,
-                    currPage
-                );
-            for (uint256 i; i < availablePositions.length; i++) {
-                ISqwidMarketplaceUtil.PositionResponse memory positionOld = availablePositions[i];
-                idToPosition[positionOld.positionId] = _mapPosition(
-                    positionOld,
-                    PositionState.Available
-                );
+    /**
+     * Returns item available position of a certain item and owner.
+     */
+    function _fetchAvalailablePosition(uint256 itemId, address tokenOwner)
+        private
+        view
+        returns (Position memory)
+    {
+        uint256 totalPositionCount = positionIds.current();
+        for (uint256 i; i < totalPositionCount; i++) {
+            if (
+                idToPosition[i + 1].itemId == itemId &&
+                idToPosition[i + 1].owner == tokenOwner &&
+                idToPosition[i + 1].state == PositionState.Available
+            ) {
+                return idToPosition[i + 1];
             }
-            _totalPages = totalPages;
-            currPage++;
-        } while (_totalPages >= currPage);
-    }
+        }
 
-    function copyRegular() external {
-        uint256 currPage = 1;
-        uint256 _totalPages;
-        currPage = 1;
-        do {
-            (
-                ISqwidMarketplaceUtil.PositionResponse[] memory salePositions,
-                uint256 totalPages
-            ) = marketplaceUtil.fetchPositionsByState(
-                    ISqwidMarketplace.PositionState.RegularSale,
-                    100,
-                    currPage
-                );
-            for (uint256 i; i < salePositions.length; i++) {
-                ISqwidMarketplaceUtil.PositionResponse memory positionOld = salePositions[i];
-                idToPosition[positionOld.positionId] = _mapPosition(
-                    positionOld,
-                    PositionState.RegularSale
-                );
-            }
-            _totalPages = totalPages;
-            currPage++;
-        } while (_totalPages >= currPage);
-    }
-
-    function copyAuctions() external {
-        uint256 currPage = 1;
-        uint256 _totalPages;
-        do {
-            (
-                ISqwidMarketplaceUtil.PositionResponse[] memory auctions,
-                uint256 totalPages
-            ) = marketplaceUtil.fetchPositionsByState(
-                    ISqwidMarketplace.PositionState.Auction,
-                    100,
-                    currPage
-                );
-            for (uint256 i; i < auctions.length; i++) {
-                ISqwidMarketplaceUtil.PositionResponse memory positionOld = auctions[i];
-                idToPosition[positionOld.positionId] = _mapPosition(
-                    positionOld,
-                    PositionState.Auction
-                );
-                idToAuctionData[positionOld.positionId].deadline = positionOld.auctionData.deadline;
-                idToAuctionData[positionOld.positionId].highestBid = positionOld
-                    .auctionData
-                    .highestBid;
-                idToAuctionData[positionOld.positionId].highestBidder = positionOld
-                    .auctionData
-                    .highestBidder;
-                (address[] memory addresses, uint256[] memory amounts) = marketplaceUtil
-                    .fetchAuctionBids(positionOld.positionId);
-                idToAuctionData[positionOld.positionId].totalAddresses = addresses.length;
-                for (uint256 j; j < addresses.length; j++) {
-                    idToAuctionData[positionOld.positionId].indexToAddress[j] = addresses[j];
-                    idToAuctionData[positionOld.positionId].addressToAmount[addresses[j]] = amounts[
-                        j
-                    ];
-                }
-            }
-            _totalPages = totalPages;
-            currPage++;
-        } while (_totalPages >= currPage);
-    }
-
-    function copyRaffles() external {
-        uint256 currPage = 1;
-        uint256 _totalPages;
-        do {
-            (
-                ISqwidMarketplaceUtil.PositionResponse[] memory raffles,
-                uint256 totalPages
-            ) = marketplaceUtil.fetchPositionsByState(
-                    ISqwidMarketplace.PositionState.Raffle,
-                    100,
-                    currPage
-                );
-            for (uint256 i; i < raffles.length; i++) {
-                ISqwidMarketplaceUtil.PositionResponse memory positionOld = raffles[i];
-                idToPosition[positionOld.positionId] = _mapPosition(
-                    positionOld,
-                    PositionState.Raffle
-                );
-                idToRaffleData[positionOld.positionId].deadline = positionOld.raffleData.deadline;
-                idToRaffleData[positionOld.positionId].totalValue = positionOld
-                    .raffleData
-                    .totalValue;
-                idToRaffleData[positionOld.positionId].totalAddresses = positionOld
-                    .raffleData
-                    .totalAddresses;
-                (address[] memory addresses, uint256[] memory amounts) = marketplaceUtil
-                    .fetchRaffleEntries(positionOld.positionId);
-                for (uint256 j; j < addresses.length; j++) {
-                    idToRaffleData[positionOld.positionId].indexToAddress[j] = addresses[j];
-                    idToRaffleData[positionOld.positionId].addressToAmount[addresses[j]] = amounts[
-                        j
-                    ];
-                }
-            }
-            _totalPages = totalPages;
-            currPage++;
-        } while (_totalPages >= currPage);
-    }
-
-    function copyLoans() external {
-        uint256 currPage = 1;
-        uint256 _totalPages;
-        do {
-            (
-                ISqwidMarketplaceUtil.PositionResponse[] memory loans,
-                uint256 totalPages
-            ) = marketplaceUtil.fetchPositionsByState(
-                    ISqwidMarketplace.PositionState.Loan,
-                    100,
-                    currPage
-                );
-            for (uint256 i; i < loans.length; i++) {
-                ISqwidMarketplaceUtil.PositionResponse memory positionOld = loans[i];
-                idToPosition[positionOld.positionId] = _mapPosition(
-                    positionOld,
-                    PositionState.Loan
-                );
-                idToLoanData[positionOld.positionId] = LoanData(
-                    positionOld.loanData.loanAmount,
-                    positionOld.loanData.feeAmount,
-                    positionOld.loanData.numMinutes,
-                    positionOld.loanData.deadline,
-                    positionOld.loanData.lender
-                );
-            }
-            _totalPages = totalPages;
-            currPage++;
-        } while (_totalPages >= currPage);
-    }
-
-    function _mapPosition(
-        ISqwidMarketplaceUtil.PositionResponse memory positionOld,
-        PositionState state
-    ) private pure returns (Position memory) {
-        return
-            Position(
-                positionOld.positionId,
-                positionOld.item.itemId,
-                positionOld.owner,
-                positionOld.amount,
-                positionOld.price,
-                positionOld.marketFee,
-                state
-            );
+        Position memory emptyPosition;
+        return emptyPosition;
     }
 }
