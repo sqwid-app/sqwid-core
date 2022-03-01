@@ -232,8 +232,7 @@ describe("************ Marketplace ******************", () => {
         expect(endNumArtistPositions - iniNumArtistPositions).to.equal(1);
     });
 
-    // TODO remove
-    it("Should mint batch of NFTs and create market items", async () => {
+    it("Should create great amount of market items", async () => {
         balanceHelper = await getBalanceHelper();
 
         // Initial data
@@ -242,7 +241,7 @@ describe("************ Marketplace ******************", () => {
         );
 
         const ITEM_START = 100;
-        const NUM_ITEMS = 25;
+        const NUM_ITEMS = 35;
         const BASE_URI = "ipfs://QmQAoMbqJsfxUSLZZwS3zG34nGkWtPhXoXk7itrqC9Tb1q/sqwid-0{id}.json";
 
         // Create tokens

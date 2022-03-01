@@ -48,3 +48,5 @@ In order to use your Reef account to deploy the contracts or run the tests, you 
 ## License
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
+
+![diagram](sqwid-diagram-v02.png)

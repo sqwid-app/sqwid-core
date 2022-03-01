@@ -72,7 +72,7 @@ describe("************ Migration ******************", () => {
         const itemsOld = [];
         let itemsPage = 1;
         let itemsTotalPages = 0;
-        const itemsPerPage = 15;
+        const itemsPerPage = 100;
         do {
             [items, totalPages] = await marketUtil.fetchItems(itemsPerPage, itemsPage);
             itemsOld.push(...items);
@@ -82,7 +82,7 @@ describe("************ Migration ******************", () => {
                     item.nftContract,
                     item.tokenId,
                     item.creator,
-                    item.positions.length,
+                    item.positionCount,
                     item.sales,
                 ];
             });
@@ -105,7 +105,7 @@ describe("************ Migration ******************", () => {
             expect(itemNew.nftContract).to.equal(itemOld.nftContract);
             expect(Number(itemNew.tokenId)).to.equal(Number(itemOld.tokenId));
             expect(itemNew.creator).to.equal(itemOld.creator);
-            expect(Number(itemNew.positionCount)).to.equal(itemOld.positions.length);
+            expect(Number(itemNew.positionCount)).to.equal(Number(itemOld.positionCount));
             expect(sales.length).to.equal(itemOld.sales ? itemOld.sales.length : 0);
             itemOld.sales.forEach((saleOld, index) => {
                 expect(saleOld.seller).to.equal(sales[index].seller);

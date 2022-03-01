@@ -73,7 +73,7 @@ describe("************ Auctions ******************", () => {
             .createItemAuction(itemId, tokensAmount, numMinutes, minBid);
         const receipt = await tx.wait();
         auctionId = receipt.events[1].args.positionId;
-        console.log("\tauction created.");
+        console.log(`\tauction created with id ${auctionId}.`);
 
         // Final data
         const auction = await marketUtil.fetchPosition(auctionId);

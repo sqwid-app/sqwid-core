@@ -83,10 +83,10 @@ contract SqwidMarketplaceUtil is Ownable {
     function fetchItems(uint256 pageSize, uint256 pageNumber)
         external
         view
-        returns (ItemResponse[] memory items, uint256 totalPages)
+        returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages)
     {
         require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 25 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
+        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
 
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
@@ -103,10 +103,10 @@ contract SqwidMarketplaceUtil is Ownable {
         }
 
         // Fill array
-        items = new ItemResponse[](endIndex - startIndex + 1);
+        items = new ISqwidMarketplace.Item[](endIndex - startIndex + 1);
         uint256 count;
         for (uint256 i = startIndex; i <= endIndex; i++) {
-            items[count] = fetchItem(i);
+            items[count] = marketplace.fetchItem(i);
             count++;
         }
 
@@ -137,9 +137,9 @@ contract SqwidMarketplaceUtil is Ownable {
         address targetAddress,
         uint256 pageSize,
         uint256 pageNumber
-    ) external view returns (ItemResponse[] memory items, uint256 totalPages) {
+    ) external view returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages) {
         require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 25 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
+        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
 
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
@@ -166,11 +166,11 @@ contract SqwidMarketplaceUtil is Ownable {
         }
 
         // Fill array
-        items = new ItemResponse[](endIndex - startIndex + 1);
+        items = new ISqwidMarketplace.Item[](endIndex - startIndex + 1);
         uint256 count;
         for (uint256 i = firstMatch; count < endIndex - startIndex + 1; i++) {
             if (marketplace.fetchItem(i).creator == targetAddress) {
-                items[count] = fetchItem(i);
+                items[count] = marketplace.fetchItem(i);
                 count++;
             }
         }
