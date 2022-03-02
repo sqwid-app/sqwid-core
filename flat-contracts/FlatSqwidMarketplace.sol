@@ -487,7 +487,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _updateAvailablePosition(itemId, msg.sender);
 
         if (address(sqwidMigrator) != address(0)) {
-            sqwidMigrator.positionClosed(positionId, msg.sender, true);
+            sqwidMigrator.positionClosed(itemId, msg.sender, true);
         }
     }
 
@@ -523,7 +523,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _updateAvailablePosition(itemId, msg.sender);
 
         if (address(sqwidMigrator) != address(0)) {
-            sqwidMigrator.positionClosed(positionId, msg.sender, false);
+            sqwidMigrator.positionClosed(itemId, msg.sender, false);
         }
     }
 
@@ -697,7 +697,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _updateAvailablePosition(itemId, receiver);
 
         if (address(sqwidMigrator) != address(0)) {
-            sqwidMigrator.positionClosed(positionId, receiver, receiver != seller);
+            sqwidMigrator.positionClosed(itemId, receiver, receiver != seller);
         }
     }
 
@@ -862,7 +862,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _updateAvailablePosition(itemId, receiver);
 
         if (address(sqwidMigrator) != address(0)) {
-            sqwidMigrator.positionClosed(positionId, receiver, receiver != seller);
+            sqwidMigrator.positionClosed(itemId, receiver, receiver != seller);
         }
     }
 
@@ -955,7 +955,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             _idToLoanData[positionId].numMinutes *
             1 minutes;
 
-        // // Allocate market fee into owner balance
+        // Allocate market fee into owner balance
         uint256 marketFeeAmount = (msg.value * _idToPosition[positionId].marketFee) / 10000;
         _updateBalance(owner(), marketFeeAmount);
 
@@ -1000,6 +1000,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         );
 
         // Delete position and loan data
+        delete _idToLoanData[positionId];
         delete _idToPosition[positionId];
         emit PositionDelete(positionId);
         _idToItem[itemId].positionCount--;
@@ -1008,7 +1009,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _updateAvailablePosition(itemId, borrower);
 
         if (address(sqwidMigrator) != address(0)) {
-            sqwidMigrator.positionClosed(positionId, borrower, false);
+            sqwidMigrator.positionClosed(itemId, borrower, false);
         }
     }
 
@@ -1040,6 +1041,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         );
 
         // Delete position and loan data
+        delete _idToLoanData[positionId];
         delete _idToPosition[positionId];
         emit PositionDelete(positionId);
         _idToItem[itemId].positionCount--;
@@ -1048,7 +1050,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _updateAvailablePosition(itemId, msg.sender);
 
         if (address(sqwidMigrator) != address(0)) {
-            sqwidMigrator.positionClosed(positionId, msg.sender, false);
+            sqwidMigrator.positionClosed(itemId, msg.sender, false);
         }
     }
 
@@ -1078,6 +1080,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         );
 
         // Delete position and loan data
+        delete _idToLoanData[positionId];
         delete _idToPosition[positionId];
         emit PositionDelete(positionId);
         _idToItem[itemId].positionCount--;
@@ -1086,7 +1089,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _updateAvailablePosition(itemId, msg.sender);
 
         if (address(sqwidMigrator) != address(0)) {
-            sqwidMigrator.positionClosed(positionId, msg.sender, false);
+            sqwidMigrator.positionClosed(itemId, msg.sender, false);
         }
     }
 

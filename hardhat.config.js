@@ -24,6 +24,7 @@ module.exports = {
     networks: {
         reef_local: {
             url: "ws://127.0.0.1:9944",
+            scanUrl: "http://localhost:8000",
             seeds: {
                 account1: SEEDS.account1,
                 account2: SEEDS.account2,
@@ -35,6 +36,7 @@ module.exports = {
         },
         reef_testnet: {
             url: "wss://rpc-testnet.reefscan.com/ws",
+            scanUrl: "https://testnet.reefscan.com",
             seeds: {
                 account1: SEEDS.account1,
                 account2: SEEDS.account2,
@@ -46,6 +48,7 @@ module.exports = {
         },
         reef_mainnet: {
             url: "wss://rpc.reefscan.com/ws",
+            scanUrl: "https://reefscan.com",
             seeds: {
                 mainnetAccount: SEEDS.mainnetAccount,
             },
