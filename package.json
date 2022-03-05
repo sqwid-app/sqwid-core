@@ -8,8 +8,8 @@
         "console": "yarn hardhat console"
     },
     "devDependencies": {
-        "@nomiclabs/hardhat-ethers": "^2.0.2",
-        "@nomiclabs/hardhat-waffle": "^2.0.1",
+        "@nomiclabs/hardhat-ethers": "^2.0.5",
+        "@nomiclabs/hardhat-waffle": "^2.0.3",
         "chai": "^4.3.4",
         "eslint": "^7.29.0",
         "eslint-config-prettier": "^8.3.0",
@@ -20,14 +20,14 @@
         "eslint-plugin-promise": "^5.1.0",
         "ethereum-waffle": "^3.3.0",
         "ethers": "^5.5.4",
-        "hardhat": "^2.6.6",
+        "hardhat": "~2.6.7",
         "prettier": "^2.3.2",
-        "prettier-plugin-solidity": "^1.0.0-beta.13",
-        "solhint": "^3.3.6",
-        "solidity-coverage": "^0.7.16"
+        "prettier-plugin-solidity": "^1.0.0-beta.19",
+        "solhint": "^3.3.7",
+        "solidity-coverage": "^0.7.20"
     },
     "dependencies": {
-        "@reef-defi/hardhat-reef": "^1.0.8"
+        "@reef-defi/hardhat-reef": "^1.0.10"
     },
     "resolutions": {
         "@polkadot/api": "6.3.1",

@@ -43,17 +43,19 @@ interface ISqwidMarketplaceUtil {
 
     function fetchNumberItems() external view returns (uint256);
 
-    function fetchItems(uint256 pageSize, uint256 pageNumber)
-        external
-        view
-        returns (ItemResponse[] memory items, uint256 totalPages);
+    function fetchItems(
+        uint256 pageSize,
+        uint256 pageNumber,
+        bool newestToOldest
+    ) external view returns (ItemResponse[] memory items, uint256 totalPages);
 
     function fetchAddressNumberItemsCreated(address targetAddress) external view returns (uint256);
 
     function fetchAddressItemsCreated(
         address targetAddress,
         uint256 pageSize,
-        uint256 pageNumber
+        uint256 pageNumber,
+        bool newestToOldest
     ) external view returns (ItemResponse[] memory items, uint256 totalPages);
 
     function fetchPosition(uint256 positionId) external view returns (PositionResponse memory);
@@ -63,7 +65,8 @@ interface ISqwidMarketplaceUtil {
     function fetchAddressPositions(
         address targetAddress,
         uint256 pageSize,
-        uint256 pageNumber
+        uint256 pageNumber,
+        bool newestToOldest
     ) external view returns (PositionResponse[] memory positions, uint256 totalPages);
 
     function fetchNumberPositionsByState(ISqwidMarketplace.PositionState state)
@@ -74,15 +77,11 @@ interface ISqwidMarketplaceUtil {
     function fetchPositionsByState(
         ISqwidMarketplace.PositionState state,
         uint256 pageSize,
-        uint256 pageNumber
+        uint256 pageNumber,
+        bool newestToOldest
     ) external view returns (PositionResponse[] memory positions, uint256 totalPages);
 
     function fetchAuctionBids(uint256 positionId)
-        external
-        view
-        returns (address[] memory, uint256[] memory);
-
-    function fetchRaffleEntries(uint256 positionId)
         external
         view
         returns (address[] memory, uint256[] memory);
@@ -92,15 +91,22 @@ interface ISqwidMarketplaceUtil {
     function fetchAddressBids(
         address targetAddress,
         uint256 pageSize,
-        uint256 pageNumber
+        uint256 pageNumber,
+        bool newestToOldest
     ) external view returns (AuctionBidded[] memory bids, uint256 totalPages);
+
+    function fetchRaffleEntries(uint256 positionId)
+        external
+        view
+        returns (address[] memory, uint256[] memory);
 
     function fetchAddressNumberRaffles(address targetAddress) external view returns (uint256);
 
     function fetchAddressRaffles(
         address targetAddress,
         uint256 pageSize,
-        uint256 pageNumber
+        uint256 pageNumber,
+        bool newestToOldest
     ) external view returns (RaffleEntered[] memory raffles, uint256 totalPages);
 
     function fetchAddressNumberLoans(address targetAddress) external view returns (uint256);
@@ -108,6 +114,7 @@ interface ISqwidMarketplaceUtil {
     function fetchAddressLoans(
         address targetAddress,
         uint256 pageSize,
-        uint256 pageNumber
+        uint256 pageNumber,
+        bool newestToOldest
     ) external view returns (PositionResponse[] memory loans, uint256 totalPages);
 }
