@@ -5,8 +5,6 @@ import "../@openzeppelin/contracts/access/Ownable.sol";
 import "./interface/ISqwidMarketplace.sol";
 import "./interface/ISqwidERC1155.sol";
 
-import "hardhat/console.sol";
-
 contract SqwidMarketplaceUtil is Ownable {
     struct ItemResponse {
         uint256 itemId;
