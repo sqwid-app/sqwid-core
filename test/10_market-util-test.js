@@ -1,6 +1,6 @@
 const { getMainContracts, throwsException } = require("./util");
 
-describe.only("************ Market Util ******************", () => {
+describe("************ Market Util ******************", () => {
     before(async () => {
         // Get accounts
         account2 = await reef.getSignerByName("account2");

@@ -27,8 +27,7 @@ async function main() {
     const nft = await NFT.deploy();
     await nft.deployed();
     console.log(`SqwidERC1155 deployed to ${nft.address}`);
-    // await hre.reef.verifyContract(nft.address, "SqwidERC1155");
-    // console.log(`SqwidERC1155 verified`);
+    await hre.reef.verifyContract(nft.address, "SqwidERC1155", []);
 
     // Deploy SqwidMarketplace
     const Marketplace = await hre.reef.getContractFactory("SqwidMarketplace", ownerAccount);
@@ -36,16 +35,19 @@ async function main() {
     const marketplace = await Marketplace.deploy(marketFee, nft.address);
     await marketplace.deployed();
     console.log(`SqwidMarketplace deployed in ${marketplace.address}`);
-    // await hre.reef.verifyContract(marketplace.address, "SqwidMarketplace", marketFee, nft.address);
-    // console.log(`SqwidMarketplace verified`);
+    await hre.reef.verifyContract(marketplace.address, "SqwidMarketplace", [
+        marketFee,
+        nft.address,
+    ]);
 
     // Deploy SqwidMarketplaceUtil
     const MarketUtil = await hre.reef.getContractFactory("SqwidMarketplaceUtil", ownerAccount);
     const marketUtil = await MarketUtil.deploy(marketplace.address);
     await marketUtil.deployed();
     console.log(`SqwidMarketplaceUtil deployed in ${marketUtil.address}`);
-    // await hre.reef.verifyContract(marketUtil.address, "SqwidMarketplaceUtil", marketplace.address);
-    // console.log(`SqwidMarketplaceUtil verified`);
+    await hre.reef.verifyContract(marketUtil.address, "SqwidMarketplaceUtil", [
+        marketplace.address,
+    ]);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

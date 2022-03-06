@@ -280,8 +280,5 @@ describe("************ Marketplace ******************", () => {
         console.log(endItemsCreated - iniItemsCreated);
 
         expect(endItemsCreated - iniItemsCreated).to.equal(NUM_ITEMS);
-
-        let itemsCreated = Number(await marketUtil.fetchAddressItemsCreated(creatorAddress, 10, 2));
-        console.log("itemsCreated", itemsCreated.length);
     });
 });

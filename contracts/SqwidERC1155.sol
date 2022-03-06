@@ -14,14 +14,7 @@ import "./base/NftRoyalties.sol";
 import "./base/NftMimeTypes.sol";
 import "./base/SqwidERC1155Wrapper.sol";
 
-contract SqwidERC1155 is
-    Context,
-    ERC165,
-    IERC1155,
-    NftRoyalties,
-    NftMimeTypes,
-    SqwidERC1155Wrapper
-{
+contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, NftMimeTypes, SqwidERC1155Wrapper {
     using Counters for Counters.Counter;
     using Address for address;
 

@@ -28,23 +28,5 @@
     },
     "dependencies": {
         "@reef-defi/hardhat-reef": "^1.0.10"
-    },
-    "resolutions": {
-        "@polkadot/api": "6.3.1",
-        "@polkadot/api-contract": "6.3.1",
-        "@polkadot/types": "6.3.1",
-        "@polkadot/util": "7.4.1",
-        "@polkadot/keyring": "7.4.1",
-        "@polkadot/types-known": "6.3.1",
-        "@polkadot/util-crypto": "7.4.1",
-        "@polkadot/x-randomvalues": "7.4.1",
-        "@polkadot/metadata": "4.17.1",
-        "@polkadot/x-textdecoder": "7.4.1",
-        "@polkadot/api-derive": "6.3.1",
-        "@polkadot/rpc-core": "6.3.1",
-        "@polkadot/rpc-provider": "6.3.1",
-        "@polkadot/x-global": "7.4.1",
-        "@polkadot/networks": "7.4.1",
-        "@ethersproject/abstract-signer": "5.5.0"
     }
 }
