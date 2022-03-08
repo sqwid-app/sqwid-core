@@ -43,6 +43,11 @@ interface ISqwidMarketplaceUtil {
 
     function fetchNumberItems() external view returns (uint256);
 
+    function fetchItemsList(uint256[] memory itemIds)
+        external
+        view
+        returns (ItemResponse[] memory items, uint256 totalPages);
+
     function fetchItems(
         uint256 pageSize,
         uint256 pageNumber,
@@ -59,6 +64,11 @@ interface ISqwidMarketplaceUtil {
     ) external view returns (ItemResponse[] memory items, uint256 totalPages);
 
     function fetchPosition(uint256 positionId) external view returns (PositionResponse memory);
+
+    function fetchPositionsList(uint256[] memory positionIds)
+        external
+        view
+        returns (PositionResponse[] memory positions);
 
     function fetchAddressNumberPositions(address targetAddress) external view returns (uint256);
 

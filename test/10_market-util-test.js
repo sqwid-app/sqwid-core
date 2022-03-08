@@ -1,3 +1,4 @@
+const { assert } = require("chai");
 const { getMainContracts, throwsException } = require("./util");
 
 describe("************ Market Util ******************", () => {
@@ -467,5 +468,57 @@ describe("************ Market Util ******************", () => {
                 );
             }
         }
+    });
+
+    it("Should get requested items", async () => {
+        console.log("\nItems by ids:");
+        console.log("=============");
+        const numItems = await marketUtil.fetchNumberItems();
+
+        const itemIds = [];
+        for (let i = 1; i < numItems && i <= 100; i++) {
+            itemIds.push(i);
+        }
+        console.log("itemIds", itemIds);
+
+        const itemIdsFetched = [];
+        const res = await marketUtil.fetchItemsList(itemIds);
+        res.forEach((item) => {
+            itemIdsFetched.push(Number(item.itemId));
+        });
+        console.log("itemIdsFetched", itemIdsFetched);
+
+        assert(JSON.stringify(itemIds) === JSON.stringify(itemIdsFetched));
+    });
+
+    it("Should get requested positions", async () => {
+        console.log("\nPositions by ids:");
+        console.log("=================");
+
+        const positionIds = [];
+
+        const res1 = await marketUtil.fetchPositionsByState(0, 25, 1, false);
+        res1.positions.forEach((pos) => {
+            positionIds.push(Number(pos.positionId));
+        });
+        const res2 = await marketUtil.fetchPositionsByState(1, 25, 1, false);
+        res2.positions.forEach((pos) => {
+            positionIds.push(Number(pos.positionId));
+        });
+        const res3 = await marketUtil.fetchPositionsByState(2, 25, 1, false);
+        res3.positions.forEach((pos) => {
+            positionIds.push(Number(pos.positionId));
+        });
+
+        console.log("positionIds", positionIds);
+
+        const positionIdsFetched = [];
+        const res = await marketUtil.fetchPositionsList(positionIds);
+        res.forEach((position) => {
+            positionIdsFetched.push(Number(position.positionId));
+        });
+        console.log("positionIdsFetched", positionIdsFetched);
+
+        assert(JSON.stringify(positionIds) === JSON.stringify(positionIdsFetched));
     });
 });

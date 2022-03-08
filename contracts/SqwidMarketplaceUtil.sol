@@ -40,6 +40,17 @@ contract SqwidMarketplaceUtil is Ownable {
 
     ISqwidMarketplace public marketplace;
 
+    modifier pagination(uint256 pageNumber, uint256 pageSize) {
+        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
+        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
+        _;
+    }
+
+    modifier idsSize(uint256 size) {
+        require(size <= 100 && size > 0, "SqwidMarketUtil: Invalid number of ids");
+        _;
+    }
+
     constructor(ISqwidMarketplace marketplace_) {
         marketplace = marketplace_;
     }
@@ -80,13 +91,33 @@ contract SqwidMarketplaceUtil is Ownable {
     }
 
     /**
-     * Returns items with all its positions paginated.
+     * Receives a list of item ids and returns the items.
+     */
+    function fetchItemsList(uint256[] memory itemIds)
+        external
+        view
+        idsSize(itemIds.length)
+        returns (ISqwidMarketplace.Item[] memory items)
+    {
+        items = new ISqwidMarketplace.Item[](itemIds.length);
+        for (uint256 i = 0; i < itemIds.length; i++) {
+            items[i] = marketplace.fetchItem(itemIds[i]);
+        }
+    }
+
+    /**
+     * Returns items paginated.
      */
     function fetchItems(
         uint256 pageSize,
         uint256 pageNumber,
         bool newestToOldest
-    ) external view returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages) {
+    )
+        external
+        view
+        pagination(pageSize, pageNumber)
+        returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages)
+    {
         if (newestToOldest) {
             return _fetchItemsReverse(pageSize, pageNumber);
         } else {
@@ -118,7 +149,12 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber,
         bool newestToOldest
-    ) external view returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages) {
+    )
+        external
+        view
+        pagination(pageSize, pageNumber)
+        returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages)
+    {
         if (newestToOldest) {
             return _fetchAddressItemsCreatedReverse(targetAddress, pageSize, pageNumber);
         } else {
@@ -169,6 +205,21 @@ contract SqwidMarketplaceUtil is Ownable {
     }
 
     /**
+     * Receives a list of position ids and returns the positions.
+     */
+    function fetchPositionsList(uint256[] memory positionIds)
+        external
+        view
+        idsSize(positionIds.length)
+        returns (PositionResponse[] memory positions)
+    {
+        positions = new PositionResponse[](positionIds.length);
+        for (uint256 i = 0; i < positionIds.length; i++) {
+            positions[i] = fetchPosition(positionIds[i]);
+        }
+    }
+
+    /**
      * Returns number of items positions from an address.
      */
     function fetchAddressNumberPositions(address targetAddress) external view returns (uint256) {
@@ -192,7 +243,12 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber,
         bool newestToOldest
-    ) external view returns (PositionResponse[] memory positions, uint256 totalPages) {
+    )
+        external
+        view
+        pagination(pageSize, pageNumber)
+        returns (PositionResponse[] memory positions, uint256 totalPages)
+    {
         if (newestToOldest) {
             return _fetchAddressPositionsReverse(targetAddress, pageSize, pageNumber);
         } else {
@@ -219,7 +275,12 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber,
         bool newestToOldest
-    ) external view returns (PositionResponse[] memory positions, uint256 totalPages) {
+    )
+        external
+        view
+        pagination(pageSize, pageNumber)
+        returns (PositionResponse[] memory positions, uint256 totalPages)
+    {
         if (newestToOldest) {
             return _fetchPositionsByStateReverse(state, pageSize, pageNumber);
         } else {
@@ -289,7 +350,12 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber,
         bool newestToOldest
-    ) external view returns (AuctionBidded[] memory bids, uint256 totalPages) {
+    )
+        external
+        view
+        pagination(pageSize, pageNumber)
+        returns (AuctionBidded[] memory bids, uint256 totalPages)
+    {
         if (newestToOldest) {
             return _fetchAddressBidsReverse(targetAddress, pageSize, pageNumber);
         } else {
@@ -359,7 +425,12 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber,
         bool newestToOldest
-    ) external view returns (RaffleEntered[] memory raffles, uint256 totalPages) {
+    )
+        external
+        view
+        pagination(pageSize, pageNumber)
+        returns (RaffleEntered[] memory raffles, uint256 totalPages)
+    {
         if (newestToOldest) {
             return _fetchAddressRafflesReverse(targetAddress, pageSize, pageNumber);
         } else {
@@ -396,7 +467,12 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber,
         bool newestToOldest
-    ) external view returns (PositionResponse[] memory loans, uint256 totalPages) {
+    )
+        external
+        view
+        pagination(pageSize, pageNumber)
+        returns (PositionResponse[] memory loans, uint256 totalPages)
+    {
         if (newestToOldest) {
             return _fetchAddressLoansReverse(targetAddress, pageSize, pageNumber);
         } else {
@@ -416,9 +492,6 @@ contract SqwidMarketplaceUtil is Ownable {
         view
         returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages)
     {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
         uint256 endIndex = startIndex + pageSize - 1;
@@ -457,9 +530,6 @@ contract SqwidMarketplaceUtil is Ownable {
         view
         returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages)
     {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 totalItemCount = marketplace.currentItemId();
         if (totalItemCount == 0) {
@@ -496,10 +566,7 @@ contract SqwidMarketplaceUtil is Ownable {
         address targetAddress,
         uint256 pageSize,
         uint256 pageNumber
-    ) internal view returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
+    ) private view returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages) {
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
         uint256 endIndex = startIndex + pageSize - 1;
@@ -551,9 +618,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 totalItemCount = marketplace.currentItemId();
         uint256 createdItemCount;
@@ -605,9 +669,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (PositionResponse[] memory positions, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
         uint256 endIndex = startIndex + pageSize - 1;
@@ -661,9 +722,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (PositionResponse[] memory positions, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 totalPositionCount = marketplace.currentPositionId();
         uint256 addressPositionCount;
@@ -715,9 +773,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (PositionResponse[] memory positions, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
         uint256 endIndex = startIndex + pageSize - 1;
@@ -764,9 +819,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (PositionResponse[] memory positions, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 totalStatePositions = marketplace.fetchStateCount(state);
         if (totalStatePositions == 0) {
@@ -812,10 +864,7 @@ contract SqwidMarketplaceUtil is Ownable {
         address targetAddress,
         uint256 pageSize,
         uint256 pageNumber
-    ) internal view returns (AuctionBidded[] memory bids, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
+    ) private view returns (AuctionBidded[] memory bids, uint256 totalPages) {
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
         uint256 endIndex = startIndex + pageSize - 1;
@@ -878,9 +927,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (AuctionBidded[] memory bids, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 totalPositionCount = marketplace.currentPositionId();
         uint256 addressBidCount;
@@ -942,10 +988,7 @@ contract SqwidMarketplaceUtil is Ownable {
         address targetAddress,
         uint256 pageSize,
         uint256 pageNumber
-    ) internal view returns (RaffleEntered[] memory raffles, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
+    ) private view returns (RaffleEntered[] memory raffles, uint256 totalPages) {
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
         uint256 endIndex = startIndex + pageSize - 1;
@@ -1008,9 +1051,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (RaffleEntered[] memory raffles, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 totalPositionCount = marketplace.currentPositionId();
         uint256 addressRaffleCount;
@@ -1073,9 +1113,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (PositionResponse[] memory loans, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
         uint256 endIndex = startIndex + pageSize - 1;
@@ -1133,9 +1170,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (PositionResponse[] memory loans, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 totalPositionCount = marketplace.currentPositionId();
         uint256 addressLoanCount;
