@@ -765,6 +765,65 @@ contract SqwidMarketplaceUtil is Ownable {
         totalPages = (addressPositionCount + pageSize - 1) / pageSize;
     }
 
+    // https://blog.polymath.network/solidity-tips-and-tricks-to-save-gas-and-reduce-bytecode-size-c44580b218e6
+    // function _getBoolean (uint256 _packedBools, uint256 _boolNumber)
+    //     private pure returns(bool)
+    // {
+    //     uint256 flag = (_packedBools >> _boolNumber) & uint256(1);
+    //     return (flag == 1 ? true : false);
+    // }
+
+    // // checks if the id exists in the array of packed booleans
+    // function _checkExistsUint256 (uint256 id, uint256 [] memory packedBooleans) private pure returns (bool) {
+    //     uint256 index = id + 1;
+    //     if (index >= packedBooleans.length * 256) {
+    //         return false;
+    //     }
+    //     return _getBoolean(packedBooleans[index / 256], index % 256);
+    // }
+
+    function _checkExistsBytes (uint256 _id, bytes memory _packedBooleans) private pure returns (bool) {
+        if (_id >= _packedBooleans.length * 8) {
+            return false;
+        }
+        uint8 b = uint8 (_packedBooleans[_id  / 8]);
+        uint8 mask = uint8 ((1 << (_id  % 8)));
+        uint8 flag = b & mask;
+        return (flag != 0);
+    }
+    
+    // returns <limit> valid positions for a given state starting at <startIndex> (where the itemIds are part of approvedIds)
+    // of owner != address (0) it also filters by owner
+    function fetchPositionsV2(
+        ISqwidMarketplace.PositionState state,
+        address owner,
+        uint256 startIndex,
+        uint256 limit,
+        bytes memory approvedIds
+    ) public view returns (PositionResponse[] memory positions) {
+        uint256 totalStatePositions = marketplace.currentPositionId();
+        require (limit >= 1 && limit <= 100, "SqwidMarketUtil: Invalid limit");
+        if (startIndex == 0) startIndex = totalStatePositions;
+        require (startIndex >= 1 && startIndex <= totalStatePositions, "SqwidMarketUtil: Invalid start index");
+        require (approvedIds.length > 0, "SqwidMarketUtil: Invalid approvedIds");
+        require (startIndex - limit >= 1, "SqwidMarketUtil: Invalid start index");
+        positions = new PositionResponse[](limit);
+        uint256 count;
+        for (uint256 i = startIndex; i > 1; i--) {
+            ISqwidMarketplace.Position memory position = marketplace.fetchPosition(i);
+            if (
+                (owner != address (0) ? position.owner == owner : true) &&
+                position.state == state &&
+                position.amount > 0 &&
+                _checkExistsBytes (position.itemId, approvedIds)
+            ) {
+                positions[count] = fetchPosition(i);
+                count++;
+                if (count == limit) break;
+            }
+        }
+    }
+
     /**
      * Returns item positions for a given state paginated (starting from first element).
      */
