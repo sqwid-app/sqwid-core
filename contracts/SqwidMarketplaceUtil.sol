@@ -806,10 +806,10 @@ contract SqwidMarketplaceUtil is Ownable {
         if (startIndex == 0) startIndex = totalStatePositions;
         require (startIndex >= 1 && startIndex <= totalStatePositions, "SqwidMarketUtil: Invalid start index");
         require (approvedIds.length > 0, "SqwidMarketUtil: Invalid approvedIds");
-        require (startIndex - limit >= 1, "SqwidMarketUtil: Invalid start index");
+        require (startIndex >= limit, "SqwidMarketUtil: Invalid start index");
         positions = new PositionResponse[](limit);
         uint256 count;
-        for (uint256 i = startIndex; i > 1; i--) {
+        for (uint256 i = startIndex; i > 0; i--) {
             PositionResponse memory position = fetchPosition (i);
             if (
                 (owner != address (0) ? position.owner == owner : true) &&
