@@ -810,14 +810,14 @@ contract SqwidMarketplaceUtil is Ownable {
         positions = new PositionResponse[](limit);
         uint256 count;
         for (uint256 i = startIndex; i > 1; i--) {
-            ISqwidMarketplace.Position memory position = marketplace.fetchPosition(i);
+            PositionResponse memory position = fetchPosition (i);
             if (
                 (owner != address (0) ? position.owner == owner : true) &&
                 position.state == state &&
                 position.amount > 0 &&
-                _checkExistsBytes (position.itemId, approvedIds)
+                _checkExistsBytes (position.item.itemId, approvedIds)
             ) {
-                positions[count] = fetchPosition(i);
+                positions[count] = position;
                 count++;
                 if (count == limit) break;
             }
