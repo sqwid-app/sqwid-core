@@ -809,17 +809,19 @@ contract SqwidMarketplaceUtil is Ownable {
         require (startIndex >= limit, "SqwidMarketUtil: Invalid start index");
         positions = new PositionResponse[](limit);
         uint256 count;
-        for (uint256 i = startIndex; i > 0; i--) {
-            PositionResponse memory position = fetchPosition (i);
+        for (uint256 i = startIndex; i > 1; i--) {
+            ISqwidMarketplace.Position memory position = marketplace.fetchPosition(i);
             if (
                 (owner != address (0) ? position.owner == owner : true) &&
                 position.state == state &&
                 position.amount > 0 &&
-                _checkExistsBytes (position.item.itemId, approvedIds)
+                _checkExistsBytes (position.itemId, approvedIds)
             ) {
-                positions[count] = position;
-                count++;
-                if (count == limit) break;
+                positions[count] = fetchPosition (i);
+                if (positions[count].amount > 0) {
+                    count++;
+                    if (count == limit) break;
+                } else delete positions[count];
             }
         }
     }
