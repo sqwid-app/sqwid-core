@@ -51,7 +51,7 @@ describe("************ Raffles ******************", () => {
         console.log("\tapproval created");
 
         // Initial data
-        const iniNumRaffles = Number(await marketUtil.fetchNumberPositionsByState(3));
+        const iniNumRaffles = Number(await market.fetchStateCount(3));
 
         // Create token and add to the market
         console.log("\tcreating market item...");
@@ -73,7 +73,7 @@ describe("************ Raffles ******************", () => {
 
         // Final data
         const raffle = await marketUtil.fetchPosition(await market.currentPositionId());
-        const endNumRaffles = Number(await marketUtil.fetchNumberPositionsByState(3));
+        const endNumRaffles = Number(await market.fetchStateCount(3));
         raffleId = raffle.positionId;
         const itemUri = await nft.uri(raffle.item.tokenId);
         itemId = Number(raffle.item.itemId);
@@ -162,7 +162,7 @@ describe("************ Raffles ******************", () => {
 
     it("Should end raffle and send NFT to winner", async () => {
         // Initial data
-        const iniNumRaffles = Number(await marketUtil.fetchNumberPositionsByState(3));
+        const iniNumRaffles = Number(await market.fetchStateCount(3));
         const iniSellerBalance = await getBalance(balanceHelper, sellerAddress, "seller");
         const iniArtistBalance = await getBalance(balanceHelper, artistAddress, "artist");
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
@@ -187,7 +187,7 @@ describe("************ Raffles ******************", () => {
         console.log("\traffle ended.");
 
         // Final data
-        const endNumRaffles = Number(await marketUtil.fetchNumberPositionsByState(3));
+        const endNumRaffles = Number(await market.fetchStateCount(3));
         const endItem = await marketUtil.fetchItem(itemId);
         const endSellerBalance = await getBalance(balanceHelper, sellerAddress, "seller");
         const endArtistBalance = await getBalance(balanceHelper, artistAddress, "artist");
@@ -243,7 +243,7 @@ describe("************ Raffles ******************", () => {
 
     it("Create new raffle with existing market item", async () => {
         // Initial data
-        const iniNumRaffles = Number(await marketUtil.fetchNumberPositionsByState(3));
+        const iniNumRaffles = Number(await market.fetchStateCount(3));
         const iniBuyer1TokenAmount = await nft.balanceOf(buyer1Address, tokenId);
         const signer = Number(iniBuyer1TokenAmount) > 0 ? buyer1 : buyer2;
 
@@ -258,7 +258,7 @@ describe("************ Raffles ******************", () => {
         console.log("\tNFT raffle created");
 
         // Final data
-        const endNumRaffles = Number(await marketUtil.fetchNumberPositionsByState(3));
+        const endNumRaffles = Number(await market.fetchStateCount(3));
 
         // Evaluate result
         expect(endNumRaffles - iniNumRaffles).to.equal(1);
@@ -282,7 +282,7 @@ describe("************ Raffles ******************", () => {
         console.log(`\tNFT created with tokenId ${tokenId}`);
 
         // Initial data
-        const iniNumRaffles = Number(await marketUtil.fetchNumberPositionsByState(3));
+        const iniNumRaffles = Number(await market.fetchStateCount(3));
         const iniSellerTokenAmount = Number(await nft.balanceOf(sellerAddress, tokenId));
         const iniSellerPositions = await getAllAddressPositions(sellerAddress);
         const iniTokenPositions = iniSellerPositions.filter(
@@ -318,7 +318,7 @@ describe("************ Raffles ******************", () => {
         console.log("\traffle ended.");
 
         // Final data
-        const endNumRaffles = Number(await marketUtil.fetchNumberPositionsByState(3));
+        const endNumRaffles = Number(await market.fetchStateCount(3));
         const endSellerTokenAmount = Number(await nft.balanceOf(sellerAddress, tokenId));
         const endSellerPositions = await getAllAddressPositions(sellerAddress);
         const endTokenPositions = endSellerPositions.filter(
@@ -342,7 +342,7 @@ describe("************ Raffles ******************", () => {
         let _totalPages = 0;
         const totalPositions = [];
         do {
-            [positions, totalPages] = await marketUtil.fetchAddressPositions(
+            [positions, totalPages] = await marketUtil.fetchAddressPositionsPage(
                 targetAddress,
                 100,
                 page
@@ -360,7 +360,12 @@ describe("************ Raffles ******************", () => {
         let _totalPages = 0;
         const totalRaffles = [];
         do {
-            [raffles, totalPages] = await marketUtil.fetchAddressRaffles(targetAddress, 100, page);
+            [raffles, totalPages] = await marketUtil.fetchAddressRafflesPage(
+                targetAddress,
+                100,
+                page,
+                false
+            );
             totalRaffles.push(...raffles);
             _totalPages = Number(totalPages);
             page++;

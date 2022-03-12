@@ -53,7 +53,7 @@ describe("************ Auctions ******************", () => {
         console.log("\tapproval created");
 
         // Initial data
-        const iniNumAuctions = Number(await marketUtil.fetchNumberPositionsByState(2));
+        const iniNumAuctions = Number(await market.fetchStateCount(2));
 
         // Create token and add to the market
         console.log("\tcreating market item...");
@@ -77,7 +77,7 @@ describe("************ Auctions ******************", () => {
 
         // Final data
         const auction = await marketUtil.fetchPosition(auctionId);
-        const endNumAuctions = Number(await marketUtil.fetchNumberPositionsByState(2));
+        const endNumAuctions = Number(await market.fetchStateCount(2));
         const tokenUri = await nft.uri(tokenId);
         deadline = new Date(auction.auctionData.deadline * 1000);
 
@@ -234,7 +234,7 @@ describe("************ Auctions ******************", () => {
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const iniBuyer2MarketBalance = await market.addressBalance(buyer2Address);
         const iniMarketBalance = await getBalance(balanceHelper, market.address, "market");
-        const iniNumAuctions = Number(await marketUtil.fetchNumberPositionsByState(2));
+        const iniNumAuctions = Number(await market.fetchStateCount(2));
         const auction = await marketUtil.fetchPosition(await market.currentPositionId());
         itemId = auction.item.itemId;
         if (!auctionId) {
@@ -272,7 +272,7 @@ describe("************ Auctions ******************", () => {
             (bid2Amount.add(bid5Amount).sub(royaltiesAmount) * marketFee) / 10000;
         const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
         const endBuyer1TokenAmount = await nft.balanceOf(buyer1Address, tokenId);
-        const endNumAuctions = Number(await marketUtil.fetchNumberPositionsByState(2));
+        const endNumAuctions = Number(await market.fetchStateCount(2));
 
         // Evaluate results
         expect(endItem.sales[0].seller).to.equal(sellerAddress);
@@ -332,7 +332,7 @@ describe("************ Auctions ******************", () => {
         // Initial data
         const iniBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
         const iniBuyer1TokenAmount = Number(await nft.balanceOf(buyer1Address, tokenId));
-        const iniNumAuctions = Number(await marketUtil.fetchNumberPositionsByState(2));
+        const iniNumAuctions = Number(await market.fetchStateCount(2));
 
         // Approve market contract for this address
         console.log("\tcreating approval for market contract...");
@@ -372,7 +372,7 @@ describe("************ Auctions ******************", () => {
         // Final data
         const endBuyer1Balance = await getBalance(balanceHelper, buyer1Address, "buyer1");
         const endBuyer1TokenAmount = Number(await nft.balanceOf(buyer1Address, tokenId));
-        const endNumAuctions = Number(await marketUtil.fetchNumberPositionsByState(2));
+        const endNumAuctions = Number(await market.fetchStateCount(2));
 
         // Evaluate results
         expect(Number(endBuyer1Balance))
@@ -387,7 +387,7 @@ describe("************ Auctions ******************", () => {
         let _totalPages = 0;
         const totalPositions = [];
         do {
-            [positions, totalPages] = await marketUtil.fetchPositionsByState(state, 100, page);
+            [positions, totalPages] = await marketUtil.fetchPositionsByStatePage(state, 100, page);
             totalPositions.push(...positions);
             _totalPages = Number(totalPages);
             page++;
@@ -401,7 +401,12 @@ describe("************ Auctions ******************", () => {
         let _totalPages = 0;
         const totalBids = [];
         do {
-            [bids, totalPages] = await marketUtil.fetchAddressBids(targetAddress, 100, page);
+            [bids, totalPages] = await marketUtil.fetchAddressBidsPage(
+                targetAddress,
+                100,
+                page,
+                false
+            );
             totalBids.push(...bids);
             _totalPages = Number(totalPages);
             page++;

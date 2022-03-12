@@ -1,4 +1,4 @@
-const { expect } = require("chai");
+const { expect, assert } = require("chai");
 const { getMainContracts, getBalanceHelper, getBalance, throwsException } = require("./util");
 
 describe("************ Governance ******************", () => {
@@ -40,6 +40,7 @@ describe("************ Governance ******************", () => {
             const Governance = await reef.getContractFactory("SqwidGovernance", iniOwner);
             governance = await Governance.deploy(
                 [owner1Address, owner2Address, owner3Address],
+                2,
                 market.address
             );
             await governance.deployed();
@@ -156,18 +157,12 @@ describe("************ Governance ******************", () => {
             "Governance: Caller is not owner"
         );
 
-        // Initial balances
-        const iniGovernanceBalance = await getBalance(balanceHelper, governanceAddress, "");
-        const iniOwner2GovBalance = await governance.addressBalance(owner2Address);
-        const iniOwner3GovBalance = await governance.addressBalance(owner3Address);
-
         // owner1 transfers funds from marketplace to governance contract
-        console.log(`\ttransfering fees from marketplace...`);
         await governance.connect(owner1).transferFromMarketplace();
-        console.log(`\tFees transfeed.`);
-        const endGovernanceBalance = Number(await getBalance(balanceHelper, governanceAddress, ""));
         expect(Number(await market.addressBalance(governanceAddress))).to.equal(0);
-        expect(Number(endGovernanceBalance)).to.equal(Number(iniGovernanceBalance.add(feeAmount)));
+        expect(Number(await getBalance(balanceHelper, governanceAddress, ""))).to.equal(
+            Number(feeAmount)
+        );
 
         // owner1 withdraws funds from governance contract
         const iniOwner1Balance = await getBalance(balanceHelper, owner1Address, "owner1");
@@ -176,12 +171,8 @@ describe("************ Governance ******************", () => {
             Number(feeAmount.sub(feeShare))
         );
         expect(Number(await governance.addressBalance(owner1Address))).to.equal(0);
-        expect(Number(await governance.addressBalance(owner2Address))).to.equal(
-            Number(iniOwner2GovBalance.add(feeShare))
-        );
-        expect(Number(await governance.addressBalance(owner3Address))).to.equal(
-            Number(iniOwner3GovBalance.add(feeShare))
-        );
+        expect(Number(await governance.addressBalance(owner2Address))).to.equal(Number(feeShare));
+        expect(Number(await governance.addressBalance(owner3Address))).to.equal(Number(feeShare));
         const endOwner1Balance = await getBalance(balanceHelper, owner1Address, "owner1");
         console.log("Net amount:", endOwner1Balance.sub(iniOwner1Balance) / 1e18); // Amount received minus gas fees
 
@@ -193,18 +184,14 @@ describe("************ Governance ******************", () => {
         );
         expect(Number(await governance.addressBalance(owner1Address))).to.equal(0);
         expect(Number(await governance.addressBalance(owner2Address))).to.equal(0);
-        expect(Number(await governance.addressBalance(owner3Address))).to.equal(
-            Number(iniOwner3GovBalance.add(feeShare))
-        );
+        expect(Number(await governance.addressBalance(owner3Address))).to.equal(Number(feeShare));
         const endOwner2Balance = await getBalance(balanceHelper, owner2Address, "owner2");
         console.log("Net amount:", endOwner2Balance.sub(iniOwner2Balance) / 1e18); // Amount received minus gas fees
 
         // owner3 withdraws funds from governance contract
         const iniOwner3Balance = await getBalance(balanceHelper, owner3Address, "owner3");
         await governance.connect(owner3).withdraw();
-        expect(Number(await getBalance(balanceHelper, governanceAddress, ""))).to.lt(
-            Number(ethers.utils.parseUnits("1", "ether"))
-        ); // Some "wei" (smallest unit) will remain in the contract when received amount is not multiple of owners.length
+        expect(Number(await getBalance(balanceHelper, governanceAddress, ""))).to.lt(10e18); // Some "wei" (smallest unit) will remain in the contract when received amount is not multiple of owners.length
         expect(Number(await governance.addressBalance(owner1Address))).to.equal(0);
         expect(Number(await governance.addressBalance(owner2Address))).to.equal(0);
         expect(Number(await governance.addressBalance(owner3Address))).to.equal(0);
@@ -213,38 +200,55 @@ describe("************ Governance ******************", () => {
     });
 
     it("Should change market owner", async () => {
-        // External address tries to approve new market owner
-        await throwsException(
-            governance.connect(iniOwner).approveNewMarketOwner(iniOwnerAddress),
-            "Governance: Caller is not owner"
-        );
+        const encodedFunctionCall = market.interface.encodeFunctionData("transferOwnership", [
+            iniOwnerAddress,
+        ]);
 
         // Owner 1 approves new market owner
-        await governance.connect(owner1).approveNewMarketOwner(iniOwnerAddress);
-        expect(Number(await governance.marketOwnerApprovals(iniOwnerAddress))).to.equal(1);
+        const tx1 = await governance
+            .connect(owner1)
+            .submitTransaction(market.address, 0, encodedFunctionCall);
+        const receipt1 = await tx1.wait();
+        const transactionIndex = receipt1.events[0].args.txIndex;
+        let transaction = await governance.getTransaction(transactionIndex);
+        const decodedFunctionCall = market.interface.decodeFunctionData(
+            "transferOwnership",
+            transaction.data
+        );
+        expect(transaction.to).to.equal(market.address);
+        expect(Number(transaction.value)).to.equal(0);
+        expect(decodedFunctionCall[0]).to.equal(iniOwnerAddress);
+        assert(!transaction.executed);
+        expect(Number(transaction.numConfirmations)).to.equal(1);
 
         // Owner1 tries to approve same market owner
         await throwsException(
-            governance.connect(owner1).approveNewMarketOwner(iniOwnerAddress),
-            "Governance: Already approved"
+            governance.connect(owner1).approveTransaction(transactionIndex),
+            "Governance: Tx already approved"
+        );
+
+        // Owner2 tries to execute transfer ownership
+        await throwsException(
+            governance.connect(owner2).executeTransaction(transactionIndex),
+            "Governance: Tx not approved"
         );
 
         // Owner 2 approves new market owner
-        await governance.connect(owner2).approveNewMarketOwner(iniOwnerAddress);
-        expect(Number(await governance.marketOwnerApprovals(iniOwnerAddress))).to.equal(2);
-
-        // Owner3 tries to execute transfer ownership
-        await throwsException(
-            governance.connect(owner3).transferMarketplaceOwnership(iniOwnerAddress),
-            "Governance: New owner not approved"
-        );
-
-        // Owner 3 approves new market owner
-        await governance.connect(owner3).approveNewMarketOwner(iniOwnerAddress);
-        expect(Number(await governance.marketOwnerApprovals(iniOwnerAddress))).to.equal(3);
+        await governance.connect(owner2).approveTransaction(transactionIndex);
 
         // Owner3 executes transfer ownership
-        await governance.connect(owner3).transferMarketplaceOwnership(iniOwnerAddress);
+        await governance.connect(owner3).executeTransaction(transactionIndex);
+
+        transaction = await governance.getTransaction(transactionIndex);
+        assert(transaction.executed);
+        expect(Number(transaction.numConfirmations)).to.equal(2);
+
         expect(await market.owner()).to.equal(iniOwnerAddress);
+
+        // Owner3 executes transfer again
+        await throwsException(
+            governance.connect(owner2).executeTransaction(transactionIndex),
+            "Governance: Tx already executed"
+        );
     });
 });

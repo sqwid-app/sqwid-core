@@ -74,7 +74,7 @@ describe("************ Migration ******************", () => {
         let itemsTotalPages = 0;
         const itemsPerPage = 100;
         do {
-            [items, totalPages] = await marketUtil.fetchItems(itemsPerPage, itemsPage);
+            [items, totalPages] = await marketUtil.fetchItemsPage(itemsPerPage, itemsPage);
             itemsOld.push(...items);
             const submitItems = items.map((item) => {
                 return [
@@ -115,7 +115,7 @@ describe("************ Migration ******************", () => {
             });
         });
 
-        const totalAvailPos = Number(await marketUtil.fetchNumberPositionsByState(0));
+        const totalAvailPos = Number(await market.fetchStateCount(0));
         console.log(`***** Migrating ${totalAvailPos} positions *****`);
 
         const availPosOld = [];
@@ -123,7 +123,7 @@ describe("************ Migration ******************", () => {
         let avilPosTotalPages = 0;
         const positionsPerPage = 100;
         do {
-            [positions, totalPages] = await marketUtil.fetchPositionsByState(
+            [positions, totalPages] = await marketUtil.fetchPositionsByStatePage(
                 0,
                 positionsPerPage,
                 avilPosPage

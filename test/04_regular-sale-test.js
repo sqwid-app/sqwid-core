@@ -73,7 +73,7 @@ describe("************ Regular sale ******************", () => {
 
     it("Should put new nft on sale", async () => {
         // Initial data
-        const iniNumPositionsOnRegSale = Number(await marketUtil.fetchNumberPositionsByState(1));
+        const iniNumPositionsOnRegSale = Number(await market.fetchStateCount(1));
         const iniNumItems = Number(await marketUtil.fetchNumberItems());
 
         // Create token and add to the market
@@ -97,7 +97,7 @@ describe("************ Regular sale ******************", () => {
         // Results
         const position = await marketUtil.fetchPosition(position2Id);
         const item = await marketUtil.fetchItem(item2Id);
-        const endNumPositionsOnRegSale = Number(await marketUtil.fetchNumberPositionsByState(1));
+        const endNumPositionsOnRegSale = Number(await market.fetchStateCount(1));
         const endNumItems = Number(await marketUtil.fetchNumberItems());
 
         // Evaluate results
@@ -120,7 +120,7 @@ describe("************ Regular sale ******************", () => {
         const iniArtistBalance = await getBalance(balanceHelper, artistAddress, "artist");
         const iniOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const iniBuyer1TokenAmount = await nft.balanceOf(buyer1Address, token1Id);
-        const iniNumAvailablePositions = Number(await marketUtil.fetchNumberPositionsByState(0));
+        const iniNumAvailablePositions = Number(await market.fetchStateCount(0));
 
         // Buy NFT
         console.log("\tbuyer1 buying NFT from seller...");
@@ -138,7 +138,7 @@ describe("************ Regular sale ******************", () => {
         const marketFeeAmountRaw = ((salePrice - royaltiesAmount) * marketFee) / 10000;
         const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
         const item = await marketUtil.fetchItem(item1Id);
-        const endNumAvailablePositions = Number(await marketUtil.fetchNumberPositionsByState(0));
+        const endNumAvailablePositions = Number(await market.fetchStateCount(0));
 
         // Evaluate results
         expect(endBuyer1TokenAmount - iniBuyer1TokenAmount).to.equal(1);

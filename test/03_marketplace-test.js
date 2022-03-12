@@ -203,7 +203,7 @@ describe("************ Marketplace ******************", () => {
             await marketUtil.fetchAddressNumberPositions(artistAddress)
         );
         const iniItem = await marketUtil.fetchItem(itemId);
-        const iniNumPositions = Number(await marketUtil.fetchNumberPositionsByState(0));
+        const iniNumPositions = Number(await market.fetchStateCount(0));
 
         // Transfers tokens outside the marketplace
         console.log("\tcreator tansfering tokens to artist...");
@@ -223,7 +223,7 @@ describe("************ Marketplace ******************", () => {
             await marketUtil.fetchAddressNumberPositions(artistAddress)
         );
         const endItem = await marketUtil.fetchItem(itemId);
-        const endNumPositions = Number(await marketUtil.fetchNumberPositionsByState(0));
+        const endNumPositions = Number(await market.fetchStateCount(0));
 
         // Evaluate results
         expect(endNumPositions - iniNumPositions).to.equal(1);

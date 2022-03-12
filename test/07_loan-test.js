@@ -48,7 +48,7 @@ describe("************ Loans ******************", () => {
         console.log("\tapproval created");
 
         // Initial data
-        const iniNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
+        const iniNumLoans = Number(await market.fetchStateCount(4));
 
         // Create token and add to the market
         console.log("\tcreating market item...");
@@ -71,7 +71,7 @@ describe("************ Loans ******************", () => {
         console.log(`\tLoan proposal created with id ${loan1Id}`);
 
         // Final data
-        const endNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
+        const endNumLoans = Number(await market.fetchStateCount(4));
         const loan = await marketUtil.fetchPosition(loan1Id);
         const endBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token1Id);
         const endMarketTokenAmount = await nft.balanceOf(market.address, token1Id);
@@ -95,7 +95,7 @@ describe("************ Loans ******************", () => {
 
     it("Should only allow to unlist loan to borrower", async () => {
         // Initial data
-        const iniNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
+        const iniNumLoans = Number(await market.fetchStateCount(4));
         const iniBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token1Id);
         const iniMarketTokenAmount = await nft.balanceOf(market.address, token1Id);
 
@@ -110,7 +110,7 @@ describe("************ Loans ******************", () => {
         console.log("\tLoan proposal unlisted.");
 
         // Final data
-        const endNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
+        const endNumLoans = Number(await market.fetchStateCount(4));
         const endBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token1Id);
         const endMarketTokenAmount = await nft.balanceOf(market.address, token1Id);
 
@@ -194,7 +194,7 @@ describe("************ Loans ******************", () => {
         // Initial data
         const iniLenderBalance = await getBalance(balanceHelper, lenderAddress, "lender");
         const iniBorrowerBalance = await getBalance(balanceHelper, borrowerAddress, "borrower");
-        const iniNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
+        const iniNumLoans = Number(await market.fetchStateCount(4));
         const iniLenderTokenAmount = await nft.balanceOf(lenderAddress, token1Id);
         const iniMarketTokenAmount = await nft.balanceOf(market.address, token1Id);
         const iniLenderPositions = await getAllAddressPositions(lenderAddress);
@@ -216,7 +216,7 @@ describe("************ Loans ******************", () => {
         // Final data
         const endLenderBalance = await getBalance(balanceHelper, lenderAddress, "lender");
         const endBorrowerBalance = await getBalance(balanceHelper, borrowerAddress, "borrower");
-        const endNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
+        const endNumLoans = Number(await market.fetchStateCount(4));
         const endLenderTokenAmount = await nft.balanceOf(lenderAddress, token1Id);
         const endMarketTokenAmount = await nft.balanceOf(market.address, token1Id);
         const endLenderPositions = await getAllAddressPositions(lenderAddress);
@@ -281,7 +281,7 @@ describe("************ Loans ******************", () => {
         // Initial data
         const iniBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token2Id);
         const iniMarketTokenAmount = await nft.balanceOf(market.address, token2Id);
-        const iniNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
+        const iniNumLoans = Number(await market.fetchStateCount(4));
         const iniLenderBalance = await getBalance(balanceHelper, lenderAddress, "lender");
         const iniBorrowerBalance = await getBalance(balanceHelper, borrowerAddress, "borrower");
 
@@ -293,7 +293,7 @@ describe("************ Loans ******************", () => {
         // Final data
         const endBorrowerTokenAmount = await nft.balanceOf(borrowerAddress, token2Id);
         const endMarketTokenAmount = await nft.balanceOf(market.address, token2Id);
-        const endNumLoans = Number(await marketUtil.fetchNumberPositionsByState(4));
+        const endNumLoans = Number(await market.fetchStateCount(4));
         const endLenderBalance = await getBalance(balanceHelper, lenderAddress, "lender");
         const endBorrowerBalance = await getBalance(balanceHelper, borrowerAddress, "borrower");
 
@@ -314,7 +314,7 @@ describe("************ Loans ******************", () => {
         let _totalPages = 0;
         const totalPositions = [];
         do {
-            [positions, totalPages] = await marketUtil.fetchAddressPositions(
+            [positions, totalPages] = await marketUtil.fetchAddressPositionsPage(
                 targetAddress,
                 100,
                 page
@@ -332,7 +332,12 @@ describe("************ Loans ******************", () => {
         let _totalPages = 0;
         const totalLoans = [];
         do {
-            [loans, totalPages] = await marketUtil.fetchAddressLoans(targetAddress, 100, page);
+            [loans, totalPages] = await marketUtil.fetchAddressLoansPage(
+                targetAddress,
+                100,
+                page,
+                false
+            );
             totalLoans.push(...loans);
             _totalPages = Number(totalPages);
             page++;
