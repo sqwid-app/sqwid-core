@@ -102,7 +102,9 @@ contract SqwidMarketplaceUtil is Ownable {
             "SqwidMarketUtil: Invalid start index"
         );
         require(approvedIds.length > 0, "SqwidMarketUtil: Invalid approvedIds");
-        require(startIndex >= limit, "SqwidMarketUtil: Invalid start index");
+        if (startIndex < limit) {
+            limit = startIndex;
+        }
 
         items = new ISqwidMarketplace.Item[](limit);
         uint256 count;
@@ -239,7 +241,9 @@ contract SqwidMarketplaceUtil is Ownable {
             "SqwidMarketUtil: Invalid start index"
         );
         require(approvedIds.length > 0, "SqwidMarketUtil: Invalid approvedIds");
-        require(startIndex >= limit, "SqwidMarketUtil: Invalid start index");
+        if (startIndex < limit) {
+            limit = startIndex;
+        }
 
         positions = new PositionResponse[](limit);
         uint256 count;
