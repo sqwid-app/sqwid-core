@@ -38,11 +38,7 @@ describe("************ Governance ******************", () => {
             // Deploy SqwidMarketplaceUtil contract
             console.log("\tdeploying Governance contract...");
             const Governance = await reef.getContractFactory("SqwidGovernance", iniOwner);
-            governance = await Governance.deploy(
-                [owner1Address, owner2Address, owner3Address],
-                2,
-                market.address
-            );
+            governance = await Governance.deploy([owner1Address, owner2Address, owner3Address], 2);
             await governance.deployed();
             governanceAddress = governance.address;
         } else {
@@ -63,7 +59,7 @@ describe("************ Governance ******************", () => {
         expect(await governance.owners(0)).to.equal(owner1Address);
         expect(await governance.owners(1)).to.equal(owner2Address);
         expect(await governance.owners(2)).to.equal(owner3Address);
-        expect(await governance.marketplace()).to.equal(market.address);
+        expect(Number(await governance.minConfirmationsRequired())).to.equal(2);
     });
 
     it("Should transfer market ownership", async () => {
@@ -89,41 +85,45 @@ describe("************ Governance ******************", () => {
             "Ownable: caller is not the owner"
         );
 
-        await throwsException(
-            governance.connect(iniOwner).setMarketFee(350, 1),
-            "Governance: Caller is not owner"
-        );
+        // Change regular sale market fee to 350
+        const encodedFunctionCall1 = market.interface.encodeFunctionData("setMarketFee", [350, 1]);
+        const tx1 = await governance
+            .connect(owner1)
+            .proposeTransaction(market.address, 0, encodedFunctionCall1);
+        const receipt1 = await tx1.wait();
+        const transactionIndex1 = receipt1.events[0].args.txIndex;
+        await governance.connect(owner2).approveTransaction(transactionIndex1);
+        await governance.connect(owner3).executeTransaction(transactionIndex1);
 
-        await governance.connect(owner1).setMarketFee(350, 1);
         let fetchedMarketFee = await market.marketFees(1);
         expect(Number(fetchedMarketFee)).to.equal(350);
 
-        await governance.connect(owner2).setMarketFee(250, 1);
+        // Change regular sale market fee back to 250
+        const encodedFunctionCall2 = market.interface.encodeFunctionData("setMarketFee", [250, 1]);
+        const tx2 = await governance
+            .connect(owner1)
+            .proposeTransaction(market.address, 0, encodedFunctionCall2);
+        const receipt2 = await tx2.wait();
+        const transactionIndex2 = receipt2.events[0].args.txIndex;
+        await governance.connect(owner2).approveTransaction(transactionIndex2);
+        await governance.connect(owner3).executeTransaction(transactionIndex2);
+
         fetchedMarketFee = await market.marketFees(1);
         expect(Number(fetchedMarketFee)).to.equal(250);
     });
 
-    it("Should set NFT contract address", async () => {
-        await governance.connect(owner2).setNftContractAddress(iniOwnerAddress);
-        let fetchedNftAddress = await market.sqwidERC1155();
-        expect(fetchedNftAddress).to.equal(iniOwnerAddress);
-
-        await governance.connect(owner3).setNftContractAddress(nft.address);
-        fetchedNftAddress = await market.sqwidERC1155();
-        expect(fetchedNftAddress).to.equal(nft.address);
-    });
-
-    it("Should set migrator contract address", async () => {
-        await governance.connect(owner1).setMigratorAddress(iniOwnerAddress);
-        let fetchedMigratorAddress = await market.sqwidMigrator();
-        expect(fetchedMigratorAddress).to.equal(iniOwnerAddress);
-
-        await governance.connect(owner3).setMigratorAddress(ethers.constants.AddressZero);
-        fetchedMigratorAddress = await market.sqwidMigrator();
-        expect(fetchedMigratorAddress).to.equal(ethers.constants.AddressZero);
-    });
-
     it("Should withdraw fees from marketplace", async () => {
+        // Remove pending funds from previous tests
+        if (Number(await governance.addressBalance(owner1Address))) {
+            await governance.connect(owner1).withdraw();
+        }
+        if (Number(await governance.addressBalance(owner2Address))) {
+            await governance.connect(owner2).withdraw();
+        }
+        if (Number(await governance.addressBalance(owner3Address))) {
+            await governance.connect(owner3).withdraw();
+        }
+
         // Initial data
         const salePrice = ethers.utils.parseUnits("100", "ether");
         const iniOwnerMarketBalance = await market.addressBalance(governanceAddress);
@@ -153,12 +153,12 @@ describe("************ Governance ******************", () => {
 
         // External address tries to approve new market owner
         await throwsException(
-            governance.connect(iniOwner).transferFromMarketplace(),
+            governance.connect(iniOwner).transferFromMarketplace(market.address),
             "Governance: Caller is not owner"
         );
 
         // owner1 transfers funds from marketplace to governance contract
-        await governance.connect(owner1).transferFromMarketplace();
+        await governance.connect(owner1).transferFromMarketplace(market.address);
         expect(Number(await market.addressBalance(governanceAddress))).to.equal(0);
         expect(Number(await getBalance(balanceHelper, governanceAddress, ""))).to.equal(
             Number(feeAmount)
@@ -191,12 +191,53 @@ describe("************ Governance ******************", () => {
         // owner3 withdraws funds from governance contract
         const iniOwner3Balance = await getBalance(balanceHelper, owner3Address, "owner3");
         await governance.connect(owner3).withdraw();
-        expect(Number(await getBalance(balanceHelper, governanceAddress, ""))).to.lt(10e18); // Some "wei" (smallest unit) will remain in the contract when received amount is not multiple of owners.length
+        expect(Number(await getBalance(balanceHelper, governanceAddress, ""))).to.lt(
+            Number(ethers.utils.parseUnits("1", "ether"))
+        ); // Some "wei" (smallest unit) will remain in the contract when received amount is not multiple of owners.length
         expect(Number(await governance.addressBalance(owner1Address))).to.equal(0);
         expect(Number(await governance.addressBalance(owner2Address))).to.equal(0);
         expect(Number(await governance.addressBalance(owner3Address))).to.equal(0);
         const endOwner3Balance = await getBalance(balanceHelper, owner3Address, "owner3");
         console.log("Net amount:", endOwner3Balance.sub(iniOwner3Balance) / 1e18); // Amount received minus gas fees
+    });
+
+    it("Should add new owner", async () => {
+        const tx = await governance.connect(owner1).proposeOwnersChange(iniOwnerAddress, true);
+        const index = (await tx.wait()).events[0].args.ownersChangeIndex;
+        await governance.connect(owner2).approveOwnersChange(index);
+        await governance.connect(owner1).executeOwnersChange(index);
+
+        const owners = await governance.getOwners();
+        expect(owners.length).to.equal(4);
+        expect(owners[3]).to.equal(iniOwnerAddress);
+    });
+
+    it("Should remove owner", async () => {
+        const tx = await governance.connect(owner1).proposeOwnersChange(iniOwnerAddress, false);
+        const index = (await tx.wait()).events[0].args.ownersChangeIndex;
+        await governance.connect(iniOwner).approveOwnersChange(index);
+        await governance.connect(owner1).executeOwnersChange(index);
+
+        const owners = await governance.getOwners();
+        expect(owners.length).to.equal(3);
+        assert(!owners.find((o) => o == iniOwnerAddress));
+    });
+
+    it("Should modify minimum confirmations", async () => {
+        const tx = await governance.connect(owner1).proposeMinConfirmationsChange(3);
+        const index = (await tx.wait()).events[0].args.minConfirmationsChangeIndex;
+        await governance.connect(owner3).approveMinConfirmationsChange(index);
+        await governance.connect(owner2).executeMinConfirmationsChange(index);
+
+        expect(Number(await governance.minConfirmationsRequired())).to.equal(3);
+
+        const tx2 = await governance.connect(owner1).proposeMinConfirmationsChange(2);
+        const index2 = (await tx2.wait()).events[0].args.minConfirmationsChangeIndex;
+        await governance.connect(owner2).approveMinConfirmationsChange(index2);
+        await governance.connect(owner3).approveMinConfirmationsChange(index2);
+        await governance.connect(owner1).executeMinConfirmationsChange(index2);
+
+        expect(Number(await governance.minConfirmationsRequired())).to.equal(2);
     });
 
     it("Should change market owner", async () => {
@@ -207,10 +248,10 @@ describe("************ Governance ******************", () => {
         // Owner 1 approves new market owner
         const tx1 = await governance
             .connect(owner1)
-            .submitTransaction(market.address, 0, encodedFunctionCall);
+            .proposeTransaction(market.address, 0, encodedFunctionCall);
         const receipt1 = await tx1.wait();
         const transactionIndex = receipt1.events[0].args.txIndex;
-        let transaction = await governance.getTransaction(transactionIndex);
+        let transaction = await governance.transactions(transactionIndex);
         const decodedFunctionCall = market.interface.decodeFunctionData(
             "transferOwnership",
             transaction.data
@@ -239,7 +280,7 @@ describe("************ Governance ******************", () => {
         // Owner3 executes transfer ownership
         await governance.connect(owner3).executeTransaction(transactionIndex);
 
-        transaction = await governance.getTransaction(transactionIndex);
+        transaction = await governance.transactions(transactionIndex);
         assert(transaction.executed);
         expect(Number(transaction.numConfirmations)).to.equal(2);
 
