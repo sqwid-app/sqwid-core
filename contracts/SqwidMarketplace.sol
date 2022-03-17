@@ -1129,8 +1129,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
 
         // Transfer royalties to rightholder if amount is not 0
         if (royaltiesAmount > 0) {
-            (bool successTx, ) = royaltiesReceiver.call{ value: royaltiesAmount }("");
-            if (!successTx) {
+            if (!payable(royaltiesReceiver).send(royaltiesAmount)) {
                 _updateBalance(royaltiesReceiver, royaltiesAmount);
             }
         }
@@ -1184,8 +1183,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         uint256 netSaleValue = saleValue - marketFeeAmount;
 
         // Transfer value of the transaction to the seller
-        (bool successTx, ) = seller.call{ value: netSaleValue }("");
-        if (!successTx) {
+        if (!seller.send(netSaleValue)) {
             _updateBalance(seller, netSaleValue);
         }
 

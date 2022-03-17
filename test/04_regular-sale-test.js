@@ -30,14 +30,14 @@ describe("************ Regular sale ******************", () => {
         market = contracts.market;
         marketUtil = contracts.marketUtil;
         balanceHelper = await getBalanceHelper();
-    });
 
-    it("Should put market item on sale", async () => {
         // Approve market contract
         console.log("\tcreating approval for market contract...");
         await nft.connect(seller).setApprovalForAll(market.address, true);
         console.log("\tapproval created");
+    });
 
+    it("Should put market item on sale", async () => {
         // Create token and add to the market
         console.log("\tcreating market item...");
         const tx1 = await market
@@ -209,5 +209,42 @@ describe("************ Regular sale ******************", () => {
         // Evaluate results
         expect(endTokenBalance - iniTokenBalance).to.equal(10);
         expect(iniOnsale - endOnsale).to.equal(1);
+    });
+
+    it("Should not fail sending royalties to malicious contract", async () => {
+        // Deploy Malicious contract
+        const GasBurner = await hre.ethers.getContractFactory("GasBurner", owner);
+        gasBurner = await GasBurner.deploy();
+        await gasBurner.deployed();
+
+        // Create token and add to the market
+        console.log("\tcreating market item...");
+        const tx1 = await market
+            .connect(seller)
+            .mint(1, "https://fake-uri-1.com", "image", gasBurner.address, royaltyValue);
+        const receipt1 = await tx1.wait();
+        item1Id = receipt1.events[2].args[0].toNumber();
+        token1Id = receipt1.events[2].args[2].toNumber();
+        console.log(`\tNFT created with tokenId ${token1Id}`);
+        console.log(`\tMarket item created with itemId ${item1Id}`);
+
+        // Puts item on sale
+        console.log("\tputting market item on sale...");
+        const tx2 = await market.connect(seller).putItemOnSale(item1Id, 1, salePrice);
+        const receipt2 = await tx2.wait();
+        position1Id = receipt2.events[1].args[0].toNumber();
+        console.log(`\tPosition created with id ${position1Id}`);
+
+        // Buys item
+        await market.connect(buyer1).createSale(position1Id, 1, { value: salePrice });
+
+        // Final data
+        const royaltiesAmountRaw = (salePrice * royaltyValue) / 10000;
+        const royaltiesAmount = ethers.utils.parseUnits(royaltiesAmountRaw.toString(), "wei");
+
+        // Evaluate results
+        expect(Number(await market.addressBalance(gasBurner.address))).to.equal(
+            Number(royaltiesAmount)
+        );
     });
 });

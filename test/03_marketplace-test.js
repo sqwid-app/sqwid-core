@@ -271,13 +271,12 @@ describe("************ Marketplace ******************", () => {
 
         for (let i = 2; i < receipt.events.length; i += 2) {
             const itemId = receipt.events[i].args[0].toNumber();
-            console.log(`\tMarket item created with itemId ${itemId}`);
+            // console.log(`\tMarket item created with itemId ${itemId}`);
         }
 
         const endItemsCreated = Number(
             await marketUtil.fetchAddressNumberItemsCreated(creatorAddress)
         );
-        console.log(endItemsCreated - iniItemsCreated);
 
         expect(endItemsCreated - iniItemsCreated).to.equal(NUM_ITEMS);
     });
