@@ -161,6 +161,12 @@ describe("************ Marketplace ******************", () => {
         const receipt2 = await tx2.wait();
         const itemId = receipt2.events[1].args[0].toNumber();
 
+        // Tries to create same item
+        await throwsException(
+            market.connect(creator).createItem(tokenId),
+            "SqwidMarketplace: Item already exists"
+        );
+
         // Results
         const item = await marketUtil.fetchItem(itemId);
 
@@ -214,6 +220,12 @@ describe("************ Marketplace ******************", () => {
         console.log("\tartist adding available tokens...");
         await market.connect(artist).addAvailableTokens(itemId);
         console.log("\tTokens registered.");
+
+        // Tries to register tokens again
+        await throwsException(
+            market.connect(artist).addAvailableTokens(itemId),
+            "SqwidMarket: Item already registered"
+        );
 
         // Final data
         const endNumCreatorPositions = Number(

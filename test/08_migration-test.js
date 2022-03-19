@@ -1,4 +1,4 @@
-const { expect } = require("chai");
+const { expect, assert } = require("chai");
 const { getMainContracts, throwsException } = require("./util");
 
 describe("************ Migration ******************", () => {
@@ -113,6 +113,7 @@ describe("************ Migration ******************", () => {
                 expect(Number(saleOld.price)).to.equal(Number(sales[index].price));
                 expect(Number(saleOld.amount)).to.equal(Number(sales[index].amount));
             });
+            assert(await migration.registeredTokens(itemOld.nftContract, itemOld.tokenId));
         });
 
         const totalAvailPos = Number(await market.fetchStateCount(0));
@@ -160,6 +161,14 @@ describe("************ Migration ******************", () => {
             expect(Number(position.price)).to.equal(Number(positionOld.price));
             expect(Number(position.marketFee)).to.equal(Number(positionOld.marketFee));
             expect(position.state).to.equal(positionOld.state);
+            expect(
+                Number(
+                    await migration.itemAvailablePositions(
+                        positionOld.item.itemId,
+                        positionOld.owner
+                    )
+                )
+            ).to.equal(Number(positionOld.positionId));
         });
     });
 

@@ -80,6 +80,11 @@ contract MarketMigrationSample is ISqwidMigrator, Ownable {
     mapping(uint256 => AuctionData) public idToAuctionData;
     mapping(uint256 => RaffleData) public idToRaffleData;
     mapping(uint256 => LoanData) public idToLoanData;
+    // contractAddress => (tokenId => isRegistered)
+    mapping(address => mapping(uint256 => bool)) public registeredTokens;
+    // itemId => (ownerAddress => availablePositionId)
+    mapping(uint256 => mapping(address => uint256)) public itemAvailablePositions;
+
     address public immutable marketplace;
     ISqwidMarketplaceUtil public immutable marketplaceUtil;
     bool public initialized;
@@ -115,6 +120,8 @@ contract MarketMigrationSample is ISqwidMigrator, Ownable {
             for (uint256 j; j < item.sales.length; j++) {
                 idToItem[item.itemId].sales.push(item.sales[j]);
             }
+
+            registeredTokens[item.nftContract][item.tokenId] = true;
         }
     }
 
@@ -123,8 +130,12 @@ contract MarketMigrationSample is ISqwidMigrator, Ownable {
      */
     function setPositions(Position[] memory positions) external onlyOwner notInitialized {
         for (uint256 i = 0; i < positions.length; i++) {
-            idToPosition[positions[i].positionId] = positions[i];
-            stateToCounter[positions[i].state].increment();
+            Position memory position = positions[i];
+            idToPosition[position.positionId] = position;
+            stateToCounter[position.state].increment();
+            if (position.state == PositionState.Available) {
+                itemAvailablePositions[position.itemId][position.owner] = position.positionId;
+            }
         }
     }
 

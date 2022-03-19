@@ -105,6 +105,10 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
     mapping(uint256 => AuctionData) private _idToAuctionData;
     mapping(uint256 => RaffleData) private _idToRaffleData;
     mapping(uint256 => LoanData) private _idToLoanData;
+    // contractAddress => (tokenId => isRegistered)
+    mapping(address => mapping(uint256 => bool)) private _registeredTokens;
+    // itemId => (ownerAddress => availablePositionId)
+    mapping(uint256 => mapping(address => uint256)) private _itemAvailablePositions;
 
     mapping(address => uint256) public addressBalance;
     mapping(PositionState => uint256) public marketFees;
@@ -265,17 +269,10 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             sqwidERC1155.balanceOf(msg.sender, tokenId) > 0,
             "SqwidMarket: Address balance too low"
         );
-
-        // Check if item already exists
-        uint256 totalItemCount = _itemIds.current();
-        for (uint256 i; i < totalItemCount; i++) {
-            if (
-                _idToItem[i + 1].nftContract == address(sqwidERC1155) &&
-                _idToItem[i + 1].tokenId == tokenId
-            ) {
-                revert("SqwidMarket: Item already exists");
-            }
-        }
+        require(
+            !_registeredTokens[address(sqwidERC1155)][tokenId],
+            "SqwidMarketplace: Item already exists"
+        );
 
         // Map new Item
         _itemIds.increment();
@@ -287,6 +284,8 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _idToItem[itemId].positionCount = 0;
 
         _updateAvailablePosition(itemId, msg.sender);
+
+        _registeredTokens[address(sqwidERC1155)][tokenId] = true;
 
         emit ItemCreated(itemId, address(sqwidERC1155), tokenId, msg.sender);
 
@@ -308,10 +307,11 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             ) > 0,
             "SqwidMarket: Address balance too low"
         );
-        Position memory position = _fetchAvalailablePosition(itemId, msg.sender);
-        if (position.itemId != 0) {
-            revert("SqwidMarket: Item already registered");
-        }
+        require(
+            _itemAvailablePositions[itemId][msg.sender] == 0,
+            "SqwidMarket: Item already registered"
+        );
+
         _updateAvailablePosition(itemId, msg.sender);
     }
 
@@ -1206,9 +1206,10 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             tokenOwner,
             _idToItem[itemId].tokenId
         );
-        Position memory position = _fetchAvalailablePosition(itemId, tokenOwner);
-        if (position.itemId != 0) {
-            receiverPositionId = position.itemId;
+        uint256 positionId = _itemAvailablePositions[itemId][tokenOwner];
+
+        if (positionId != 0) {
+            receiverPositionId = positionId;
             _idToPosition[receiverPositionId].amount = amount;
         } else {
             _positionIds.increment();
@@ -1225,6 +1226,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
 
             _stateToCounter[PositionState.Available].increment();
             _idToItem[itemId].positionCount++;
+            _itemAvailablePositions[itemId][tokenOwner] = receiverPositionId;
         }
 
         emit PositionUpdate(
@@ -1236,29 +1238,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             _idToPosition[receiverPositionId].marketFee,
             _idToPosition[receiverPositionId].state
         );
-    }
-
-    /**
-     * Returns item available position of a certain item and owner.
-     */
-    function _fetchAvalailablePosition(uint256 itemId, address tokenOwner)
-        private
-        view
-        returns (Position memory)
-    {
-        uint256 totalPositionCount = _positionIds.current();
-        for (uint256 i; i < totalPositionCount; i++) {
-            if (
-                _idToPosition[i + 1].itemId == itemId &&
-                _idToPosition[i + 1].owner == tokenOwner &&
-                _idToPosition[i + 1].state == PositionState.Available
-            ) {
-                return _idToPosition[i + 1];
-            }
-        }
-
-        Position memory emptyPosition;
-        return emptyPosition;
     }
 
     /**
