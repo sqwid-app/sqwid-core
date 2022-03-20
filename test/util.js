@@ -49,44 +49,41 @@ exports.getMainContracts = async (marketFee, owner) => {
     let utilContractAddress = config.contracts.util;
     let nft, market, marketUtil;
 
+    const NFT = await reef.getContractFactory("SqwidERC1155", owner);
     if (!nftContractAddress || nftContractAddress == "") {
         // Deploy SqwidERC1155 contract
         console.log("\tdeploying NFT contract...");
-        const NFT = await reef.getContractFactory("SqwidERC1155", owner);
         nft = await NFT.deploy();
         await nft.deployed();
         nftContractAddress = nft.address;
     } else {
-        const NFT = await reef.getContractFactory("SqwidERC1155", owner);
         nft = await NFT.attach(nftContractAddress);
     }
     console.log(`\tNFT contact deployed ${nftContractAddress}`);
 
+    const Market = await reef.getContractFactory("SqwidMarketplace", owner);
     if (!marketContractAddress || marketContractAddress == "") {
         // Deploy SqwidMarketplace contract
         console.log("\tdeploying Market contract...");
-        const Market = await reef.getContractFactory("SqwidMarketplace", owner);
         market = await Market.deploy(marketFee, nftContractAddress);
         await market.deployed();
         marketContractAddress = market.address;
     } else {
         // Get deployed contract
-        const Market = await reef.getContractFactory("SqwidMarketplace", owner);
         market = await Market.attach(marketContractAddress);
         await market.setNftContractAddress(nftContractAddress);
     }
     console.log(`\tMarket contract deployed in ${marketContractAddress}`);
 
+    const MarketUtil = await reef.getContractFactory("SqwidMarketplaceUtil", owner);
     if (!utilContractAddress || utilContractAddress == "") {
-        // Deploy SqwidMarketplace contract
+        // Deploy SqwidMarketplaceUtil contract
         console.log("\tdeploying Util contract...");
-        const MarketUtil = await reef.getContractFactory("SqwidMarketplaceUtil", owner);
         marketUtil = await MarketUtil.deploy(marketContractAddress);
         await marketUtil.deployed();
         utilContractAddress = marketUtil.address;
     } else {
         // Get deployed contract
-        const MarketUtil = await reef.getContractFactory("SqwidMarketplaceUtil", owner);
         marketUtil = await MarketUtil.attach(utilContractAddress);
         await marketUtil.setMarketContractAddress(marketContractAddress);
     }

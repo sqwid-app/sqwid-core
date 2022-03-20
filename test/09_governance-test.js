@@ -34,16 +34,15 @@ describe("************ Governance ******************", () => {
         balanceHelper = await getBalanceHelper();
 
         // Deploy or get governance contract
+        const Governance = await reef.getContractFactory("SqwidGovernance", iniOwner);
         if (!governanceAddress || governanceAddress == "") {
             // Deploy SqwidMarketplaceUtil contract
             console.log("\tdeploying Governance contract...");
-            const Governance = await reef.getContractFactory("SqwidGovernance", iniOwner);
             governance = await Governance.deploy([owner1Address, owner2Address, owner3Address], 2);
             await governance.deployed();
             governanceAddress = governance.address;
         } else {
             // Get deployed contract
-            const Governance = await reef.getContractFactory("SqwidGovernance", iniOwner);
             governance = await Governance.attach(governanceAddress);
         }
         console.log(`\tGovernance contract deployed in ${governanceAddress}`);
