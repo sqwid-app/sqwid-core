@@ -823,7 +823,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             "SqwidMarket: Address balance too low"
         );
         require(loanAmount > 0, "SqwidMarket: Loan amount cannot be 0");
-        require(feeAmount >= 0, "SqwidMarket: Fee cannot be negative");
         require(tokenAmount > 0, "SqwidMarket: Token amount cannot be 0");
         require(numMinutes >= 1 && numMinutes <= 525600, "SqwidMarket: Number of minutes invalid");
         // 1,440 min = 1 day - 525,600 min = 1 year

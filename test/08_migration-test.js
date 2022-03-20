@@ -53,7 +53,7 @@ describe("************ Migration ******************", () => {
         // Deploy migration contract
         console.log("\tdeploying migration contract...");
         const Migration = await reef.getContractFactory("MarketMigrationSample", owner);
-        migration = await Migration.deploy(market.address, marketUtil.address);
+        migration = await Migration.deploy(market.address);
         await migration.deployed();
         console.log(`\tMigration contact deployed ${migration.address}`);
     });

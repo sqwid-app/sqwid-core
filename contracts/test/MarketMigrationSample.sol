@@ -85,8 +85,7 @@ contract MarketMigrationSample is ISqwidMigrator, Ownable {
     // itemId => (ownerAddress => availablePositionId)
     mapping(uint256 => mapping(address => uint256)) public itemAvailablePositions;
 
-    address public immutable marketplace;
-    ISqwidMarketplaceUtil public immutable marketplaceUtil;
+    ISqwidMarketplace public immutable oldMarketplace;
     bool public initialized;
 
     modifier notInitialized() {
@@ -94,9 +93,8 @@ contract MarketMigrationSample is ISqwidMigrator, Ownable {
         _;
     }
 
-    constructor(address marketplace_, ISqwidMarketplaceUtil marketplaceUtil_) {
-        marketplace = marketplace_;
-        marketplaceUtil = marketplaceUtil_;
+    constructor(ISqwidMarketplace oldMarketplace_) {
+        oldMarketplace = oldMarketplace_;
     }
 
     /**
@@ -164,11 +162,11 @@ contract MarketMigrationSample is ISqwidMigrator, Ownable {
         address receiver,
         bool saleCreated
     ) external override {
-        require(msg.sender == marketplace, "Migration: Only marketplace can call");
+        require(msg.sender == address(oldMarketplace), "Migration: Only old marketplace can call");
 
         if (saleCreated) {
             // Retrieve last sale for the item
-            ISqwidMarketplaceUtil.ItemResponse memory item = marketplaceUtil.fetchItem(itemId);
+            ISqwidMarketplace.Item memory item = oldMarketplace.fetchItem(itemId);
             ISqwidMarketplace.ItemSale memory sale = item.sales[item.sales.length - 1];
 
             // Add sale to item
@@ -196,9 +194,10 @@ contract MarketMigrationSample is ISqwidMigrator, Ownable {
             tokenOwner,
             idToItem[itemId].tokenId
         );
-        Position memory position = _fetchAvalailablePosition(itemId, tokenOwner);
-        if (position.itemId != 0) {
-            receiverPositionId = position.itemId;
+        uint256 positionId = itemAvailablePositions[itemId][tokenOwner];
+
+        if (positionId != 0) {
+            receiverPositionId = positionId;
             idToPosition[receiverPositionId].amount = amount;
         } else {
             positionIds.increment();
@@ -215,29 +214,7 @@ contract MarketMigrationSample is ISqwidMigrator, Ownable {
 
             stateToCounter[PositionState.Available].increment();
             idToItem[itemId].positionCount++;
+            itemAvailablePositions[itemId][tokenOwner] = receiverPositionId;
         }
-    }
-
-    /**
-     * Returns item available position of a certain item and owner.
-     */
-    function _fetchAvalailablePosition(uint256 itemId, address tokenOwner)
-        private
-        view
-        returns (Position memory)
-    {
-        uint256 totalPositionCount = positionIds.current();
-        for (uint256 i; i < totalPositionCount; i++) {
-            if (
-                idToPosition[i + 1].itemId == itemId &&
-                idToPosition[i + 1].owner == tokenOwner &&
-                idToPosition[i + 1].state == PositionState.Available
-            ) {
-                return idToPosition[i + 1];
-            }
-        }
-
-        Position memory emptyPosition;
-        return emptyPosition;
     }
 }
