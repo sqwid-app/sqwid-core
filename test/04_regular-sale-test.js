@@ -212,10 +212,18 @@ describe("************ Regular sale ******************", () => {
     });
 
     it("Should not fail sending royalties to malicious contract", async () => {
-        // Deploy Malicious contract
+        // Deploy of get malicious contract
         const GasBurner = await hre.ethers.getContractFactory("GasBurner", owner);
-        gasBurner = await GasBurner.deploy();
-        await gasBurner.deployed();
+        if (config.contracts.gasBurner == "") {
+            // Deploy GasBurner contract
+            console.log("\tdeploying GasBurner contract...");
+            gasBurner = await GasBurner.deploy();
+            await gasBurner.deployed();
+        } else {
+            // Get deployed contract
+            gasBurner = await GasBurner.attach(config.contracts.gasBurner);
+        }
+        console.log(`\tGasBurner contract deployed in ${gasBurner.address}`);
 
         // Create token and add to the market
         console.log("\tcreating market item...");
