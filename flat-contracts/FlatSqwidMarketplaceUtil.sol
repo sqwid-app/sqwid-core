@@ -218,6 +218,17 @@ contract SqwidMarketplaceUtil is Ownable {
 
     ISqwidMarketplace public marketplace;
 
+    modifier pagination(uint256 pageNumber, uint256 pageSize) {
+        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
+        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
+        _;
+    }
+
+    modifier idsSize(uint256 size) {
+        require(size <= 100 && size > 0, "SqwidMarketUtil: Invalid number of ids");
+        _;
+    }
+
     constructor(ISqwidMarketplace marketplace_) {
         marketplace = marketplace_;
     }
@@ -251,25 +262,82 @@ contract SqwidMarketplaceUtil is Ownable {
     }
 
     /**
+     * Returns <limit> valid items for a given state starting at <startIndex> (where the itemIds
+     * are part of approvedIds)
+     */
+    function fetchItems(
+        uint256 startIndex,
+        uint256 limit,
+        bytes memory approvedIds
+    ) external view returns (ISqwidMarketplace.Item[] memory items) {
+        require(limit >= 1 && limit <= 100, "SqwidMarketUtil: Invalid limit");
+        uint256 totalItems = marketplace.currentItemId();
+        if (startIndex == 0) {
+            startIndex = totalItems;
+        }
+        require(
+            startIndex >= 1 && startIndex <= totalItems,
+            "SqwidMarketUtil: Invalid start index"
+        );
+        require(approvedIds.length > 0, "SqwidMarketUtil: Invalid approvedIds");
+        if (startIndex < limit) {
+            limit = startIndex;
+        }
+
+        items = new ISqwidMarketplace.Item[](limit);
+        uint256 count;
+        for (uint256 i = startIndex; i > 0; i--) {
+            if (_checkExistsBytes(i, approvedIds)) {
+                items[count] = marketplace.fetchItem(i);
+                count++;
+                if (count == limit) break;
+            }
+        }
+    }
+
+    /**
+     * Returns items paginated.
+     */
+    function fetchItemsPage(uint256 pageSize, uint256 pageNumber)
+        external
+        view
+        pagination(pageSize, pageNumber)
+        returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages)
+    {
+        // Get start and end index
+        uint256 startIndex = pageSize * (pageNumber - 1) + 1;
+        uint256 endIndex = startIndex + pageSize - 1;
+        uint256 totalItemCount = marketplace.currentItemId();
+        if (totalItemCount == 0) {
+            if (pageNumber > 1) {
+                revert("SqwidMarketUtil: Invalid page number");
+            }
+            return (items, 0);
+        }
+        if (startIndex > totalItemCount) {
+            revert("SqwidMarketUtil: Invalid page number");
+        }
+        if (endIndex > totalItemCount) {
+            endIndex = totalItemCount;
+        }
+
+        // Fill array
+        items = new ISqwidMarketplace.Item[](endIndex - startIndex + 1);
+        uint256 count;
+        for (uint256 i = startIndex; i <= endIndex; i++) {
+            items[count] = marketplace.fetchItem(i);
+            count++;
+        }
+
+        // Set total number pages
+        totalPages = (totalItemCount + pageSize - 1) / pageSize;
+    }
+
+    /**
      * Returns total number of items.
      */
     function fetchNumberItems() public view returns (uint256) {
         return marketplace.currentItemId();
-    }
-
-    /**
-     * Returns items with all its positions paginated.
-     */
-    function fetchItems(
-        uint256 pageSize,
-        uint256 pageNumber,
-        bool newestToOldest
-    ) external view returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages) {
-        if (newestToOldest) {
-            return _fetchItemsReverse(pageSize, pageNumber);
-        } else {
-            return _fetchItems(pageSize, pageNumber);
-        }
     }
 
     /**
@@ -286,22 +354,6 @@ contract SqwidMarketplaceUtil is Ownable {
         }
 
         return createdItemCount;
-    }
-
-    /**
-     * Returns items created by an address with its positions paginated.
-     */
-    function fetchAddressItemsCreated(
-        address targetAddress,
-        uint256 pageSize,
-        uint256 pageNumber,
-        bool newestToOldest
-    ) external view returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages) {
-        if (newestToOldest) {
-            return _fetchAddressItemsCreatedReverse(targetAddress, pageSize, pageNumber);
-        } else {
-            return _fetchAddressItemsCreated(targetAddress, pageSize, pageNumber);
-        }
     }
 
     //////////////////////////////////////////////////////////////////////////
@@ -347,445 +399,64 @@ contract SqwidMarketplaceUtil is Ownable {
     }
 
     /**
-     * Returns number of items positions from an address.
+     * Returns <limit> valid positions for a given state starting at <startIndex> (where the itemIds
+     * are part of approvedIds) of owner != address (0) it also filters by owner
      */
-    function fetchAddressNumberPositions(address targetAddress) external view returns (uint256) {
-        uint256 totalPositionCount = marketplace.currentPositionId();
-        uint256 positionCount = 0;
-        for (uint256 i; i < totalPositionCount; i++) {
-            ISqwidMarketplace.Position memory position = marketplace.fetchPosition(i + 1);
-            if (position.owner == targetAddress) {
-                positionCount++;
-            }
+    function fetchPositions(
+        ISqwidMarketplace.PositionState state,
+        address owner,
+        uint256 startIndex,
+        uint256 limit,
+        bytes memory approvedIds
+    ) external view returns (PositionResponse[] memory positions) {
+        require(limit >= 1 && limit <= 100, "SqwidMarketUtil: Invalid limit");
+        uint256 totalPositions = marketplace.currentPositionId();
+        if (startIndex == 0) {
+            startIndex = totalPositions;
+        }
+        require(
+            startIndex >= 1 && startIndex <= totalPositions,
+            "SqwidMarketUtil: Invalid start index"
+        );
+        require(approvedIds.length > 0, "SqwidMarketUtil: Invalid approvedIds");
+        if (startIndex < limit) {
+            limit = startIndex;
         }
 
-        return positionCount;
+        positions = new PositionResponse[](limit);
+        uint256 count;
+        for (uint256 i = startIndex; i > 0; i--) {
+            ISqwidMarketplace.Position memory position = marketplace.fetchPosition(i);
+            if (
+                (owner != address(0) ? position.owner == owner : true) &&
+                position.state == state &&
+                position.amount > 0 &&
+                _checkExistsBytes(position.itemId, approvedIds)
+            ) {
+                positions[count] = fetchPosition(i);
+                if (positions[count].amount > 0) {
+                    count++;
+                    if (count == limit) break;
+                } else {
+                    delete positions[count];
+                }
+            }
+        }
     }
 
     /**
      * Returns items positions from an address paginated.
      */
-    function fetchAddressPositions(
+    function fetchAddressPositionsPage(
         address targetAddress,
         uint256 pageSize,
-        uint256 pageNumber,
-        bool newestToOldest
-    ) external view returns (PositionResponse[] memory positions, uint256 totalPages) {
-        if (newestToOldest) {
-            return _fetchAddressPositionsReverse(targetAddress, pageSize, pageNumber);
-        } else {
-            return _fetchAddressPositions(targetAddress, pageSize, pageNumber);
-        }
-    }
-
-    /**
-     * Returns number of item positions for a given state.
-     */
-    function fetchNumberPositionsByState(ISqwidMarketplace.PositionState state)
+        uint256 pageNumber
+    )
         external
         view
-        returns (uint256)
+        pagination(pageSize, pageNumber)
+        returns (PositionResponse[] memory positions, uint256 totalPages)
     {
-        return marketplace.fetchStateCount(state);
-    }
-
-    /**
-     * Returns item positions for a given state paginated.
-     */
-    function fetchPositionsByState(
-        ISqwidMarketplace.PositionState state,
-        uint256 pageSize,
-        uint256 pageNumber,
-        bool newestToOldest
-    ) external view returns (PositionResponse[] memory positions, uint256 totalPages) {
-        if (newestToOldest) {
-            return _fetchPositionsByStateReverse(state, pageSize, pageNumber);
-        } else {
-            return _fetchPositionsByState(state, pageSize, pageNumber);
-        }
-    }
-
-    //////////////////////////////////////////////////////////////////////////
-    /////////////////////////// AUCTIONS /////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
-
-    /**
-     * Returns addresses and bids of an active auction.
-     */
-    function fetchAuctionBids(uint256 positionId)
-        public
-        view
-        returns (address[] memory, uint256[] memory)
-    {
-        ISqwidMarketplace.Position memory position = marketplace.fetchPosition(positionId);
-        require(
-            position.state == ISqwidMarketplace.PositionState.Auction,
-            "SqwidMarketUtil: Position on wrong state"
-        );
-
-        uint256 totalAddresses = marketplace.fetchAuctionData(positionId).totalAddresses;
-
-        // Initialize array
-        address[] memory addresses = new address[](totalAddresses);
-        uint256[] memory amounts = new uint256[](totalAddresses);
-
-        // Fill arrays
-        for (uint256 i; i < totalAddresses; i++) {
-            (address addr, uint256 amount) = marketplace.fetchBid(positionId, i);
-            addresses[i] = addr;
-            amounts[i] = amount;
-        }
-
-        return (addresses, amounts);
-    }
-
-    /**
-     * Returns number of bids by an address.
-     */
-    function fetchAddressNumberBids(address targetAddress) external view returns (uint256) {
-        uint256 totalPositionCount = marketplace.currentPositionId();
-        uint256 addressBidCount;
-        for (uint256 i; i < totalPositionCount; i++) {
-            if (marketplace.fetchPosition(i + 1).state == ISqwidMarketplace.PositionState.Auction) {
-                (address[] memory addresses, ) = fetchAuctionBids(i + 1);
-                for (uint256 j; j < addresses.length; j++) {
-                    if (addresses[j] == targetAddress) {
-                        addressBidCount++;
-                    }
-                }
-            }
-        }
-
-        return addressBidCount;
-    }
-
-    /**
-     * Returns bids by an address paginated.
-     */
-    function fetchAddressBids(
-        address targetAddress,
-        uint256 pageSize,
-        uint256 pageNumber,
-        bool newestToOldest
-    ) external view returns (AuctionBidded[] memory bids, uint256 totalPages) {
-        if (newestToOldest) {
-            return _fetchAddressBidsReverse(targetAddress, pageSize, pageNumber);
-        } else {
-            return _fetchAddressBids(targetAddress, pageSize, pageNumber);
-        }
-    }
-
-    //////////////////////////////////////////////////////////////////////////
-    /////////////////////////// RAFFLES //////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
-
-    /**
-     * Returns addresses and amounts of an active raffle.
-     */
-    function fetchRaffleEntries(uint256 positionId)
-        public
-        view
-        returns (address[] memory, uint256[] memory)
-    {
-        ISqwidMarketplace.Position memory position = marketplace.fetchPosition(positionId);
-        require(
-            position.state == ISqwidMarketplace.PositionState.Raffle,
-            "SqwidMarketUtil: Position on wrong state"
-        );
-
-        uint256 totalAddresses = marketplace.fetchRaffleData(positionId).totalAddresses;
-
-        // Initialize array
-        address[] memory addresses = new address[](totalAddresses);
-        uint256[] memory amounts = new uint256[](totalAddresses);
-
-        // Fill arrays
-        for (uint256 i; i < totalAddresses; i++) {
-            (address addr, uint256 amount) = marketplace.fetchRaffleEntry(positionId, i);
-            addresses[i] = addr;
-            amounts[i] = amount;
-        }
-
-        return (addresses, amounts);
-    }
-
-    /**
-     * Returns number active raffles entered by an address.
-     */
-    function fetchAddressNumberRaffles(address targetAddress) external view returns (uint256) {
-        uint256 totalPositionCount = marketplace.currentPositionId();
-        uint256 addressRaffleCount;
-        for (uint256 i; i < totalPositionCount; i++) {
-            if (marketplace.fetchPosition(i + 1).state == ISqwidMarketplace.PositionState.Raffle) {
-                (address[] memory addresses, ) = fetchRaffleEntries(i + 1);
-                for (uint256 j; j < addresses.length; j++) {
-                    if (addresses[j] == targetAddress) {
-                        addressRaffleCount++;
-                    }
-                }
-            }
-        }
-
-        return addressRaffleCount;
-    }
-
-    /**
-     * Returns active raffles entered by an address paginated.
-     */
-    function fetchAddressRaffles(
-        address targetAddress,
-        uint256 pageSize,
-        uint256 pageNumber,
-        bool newestToOldest
-    ) external view returns (RaffleEntered[] memory raffles, uint256 totalPages) {
-        if (newestToOldest) {
-            return _fetchAddressRafflesReverse(targetAddress, pageSize, pageNumber);
-        } else {
-            return _fetchAddressRaffles(targetAddress, pageSize, pageNumber);
-        }
-    }
-
-    //////////////////////////////////////////////////////////////////////////
-    /////////////////////////// LOANS ////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
-    /**
-     * Returns number active loans funded by an address paginated.
-     */
-    function fetchAddressNumberLoans(address targetAddress) external view returns (uint256) {
-        uint256 totalPositionCount = marketplace.currentPositionId();
-        uint256 addressLoanCount;
-        for (uint256 i; i < totalPositionCount; i++) {
-            if (
-                marketplace.fetchLoanData(i + 1).lender == targetAddress &&
-                marketplace.fetchPosition(i + 1).positionId > 0
-            ) {
-                addressLoanCount++;
-            }
-        }
-
-        return addressLoanCount;
-    }
-
-    /**
-     * Returns active loans funded by an address paginated.
-     */
-    function fetchAddressLoans(
-        address targetAddress,
-        uint256 pageSize,
-        uint256 pageNumber,
-        bool newestToOldest
-    ) external view returns (PositionResponse[] memory loans, uint256 totalPages) {
-        if (newestToOldest) {
-            return _fetchAddressLoansReverse(targetAddress, pageSize, pageNumber);
-        } else {
-            return _fetchAddressLoans(targetAddress, pageSize, pageNumber);
-        }
-    }
-
-    //////////////////////////////////////////////////////////////////////////
-    /////////////////////////// PRIVATE //////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////
-
-    /**
-     * Returns items with all its positions paginated (starting from first element).
-     */
-    function _fetchItems(uint256 pageSize, uint256 pageNumber)
-        private
-        view
-        returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages)
-    {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
-        // Get start and end index
-        uint256 startIndex = pageSize * (pageNumber - 1) + 1;
-        uint256 endIndex = startIndex + pageSize - 1;
-        uint256 totalItemCount = marketplace.currentItemId();
-        if (totalItemCount == 0) {
-            if (pageNumber > 1) {
-                revert("SqwidMarketUtil: Invalid page number");
-            }
-            return (items, 0);
-        }
-        if (startIndex > totalItemCount) {
-            revert("SqwidMarketUtil: Invalid page number");
-        }
-        if (endIndex > totalItemCount) {
-            endIndex = totalItemCount;
-        }
-
-        // Fill array
-        items = new ISqwidMarketplace.Item[](endIndex - startIndex + 1);
-        uint256 count;
-        for (uint256 i = startIndex; i <= endIndex; i++) {
-            items[count] = marketplace.fetchItem(i);
-            count++;
-        }
-
-        // Set total number pages
-        totalPages = (totalItemCount + pageSize - 1) / pageSize;
-    }
-
-    /**
-     * Returns items with all its positions paginated in reverse order
-     * (starting from last element).
-     */
-    function _fetchItemsReverse(uint256 pageSize, uint256 pageNumber)
-        private
-        view
-        returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages)
-    {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
-        // Get start and end index
-        uint256 totalItemCount = marketplace.currentItemId();
-        if (totalItemCount == 0) {
-            if (pageNumber > 1) {
-                revert("SqwidMarketUtil: Invalid page number");
-            }
-            return (items, 0);
-        }
-        if ((pageSize * (pageNumber - 1)) >= totalItemCount) {
-            revert("SqwidMarketUtil: Invalid page number");
-        }
-        uint256 startIndex = totalItemCount - (pageSize * (pageNumber - 1));
-        uint256 endIndex = 1;
-        if (startIndex > pageSize) {
-            endIndex = startIndex - pageSize + 1;
-        }
-
-        // Fill array
-        items = new ISqwidMarketplace.Item[](startIndex - endIndex + 1);
-        uint256 count;
-        for (uint256 i = startIndex; i >= endIndex; i--) {
-            items[count] = marketplace.fetchItem(i);
-            count++;
-        }
-
-        // Set total number pages
-        totalPages = (totalItemCount + pageSize - 1) / pageSize;
-    }
-
-    /**
-     * Returns items created by an address with its positions paginated (starting from first element).
-     */
-    function _fetchAddressItemsCreated(
-        address targetAddress,
-        uint256 pageSize,
-        uint256 pageNumber
-    ) internal view returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
-        // Get start and end index
-        uint256 startIndex = pageSize * (pageNumber - 1) + 1;
-        uint256 endIndex = startIndex + pageSize - 1;
-        uint256 totalItemCount = marketplace.currentItemId();
-        uint256 createdItemCount;
-        uint256 firstMatch;
-        for (uint256 i; i < totalItemCount; i++) {
-            if (marketplace.fetchItem(i + 1).creator == targetAddress) {
-                createdItemCount++;
-                if (createdItemCount == startIndex) {
-                    firstMatch = i + 1;
-                }
-            }
-        }
-        if (createdItemCount == 0) {
-            if (pageNumber > 1) {
-                revert("SqwidMarketUtil: Invalid page number");
-            }
-            return (items, 0);
-        }
-        if (startIndex > createdItemCount) {
-            revert("SqwidMarketUtil: Invalid page number");
-        }
-        if (endIndex > createdItemCount) {
-            endIndex = createdItemCount;
-        }
-        uint256 size = endIndex - startIndex + 1;
-
-        // Fill array
-        items = new ISqwidMarketplace.Item[](size);
-        uint256 count;
-        for (uint256 i = firstMatch; count < size; i++) {
-            if (marketplace.fetchItem(i).creator == targetAddress) {
-                items[count] = marketplace.fetchItem(i);
-                count++;
-            }
-        }
-
-        // Set total number of pages
-        totalPages = (createdItemCount + pageSize - 1) / pageSize;
-    }
-
-    /**
-     * Returns items created by an address with its positions paginated in reverse order
-     * (starting from last element).
-     */
-    function _fetchAddressItemsCreatedReverse(
-        address targetAddress,
-        uint256 pageSize,
-        uint256 pageNumber
-    ) private view returns (ISqwidMarketplace.Item[] memory items, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
-        // Get start and end index
-        uint256 totalItemCount = marketplace.currentItemId();
-        uint256 createdItemCount;
-        for (uint256 i; i < totalItemCount; i++) {
-            if (marketplace.fetchItem(i + 1).creator == targetAddress) {
-                createdItemCount++;
-            }
-        }
-        if (createdItemCount == 0) {
-            if (pageNumber > 1) {
-                revert("SqwidMarketUtil: Invalid page number");
-            }
-            return (items, 0);
-        }
-        if ((pageSize * (pageNumber - 1)) >= createdItemCount) {
-            revert("SqwidMarketUtil: Invalid page number");
-        }
-        uint256 startIndex = createdItemCount - (pageSize * (pageNumber - 1));
-        uint256 endIndex = 1;
-        if (startIndex > pageSize) {
-            endIndex = startIndex - pageSize + 1;
-        }
-        uint256 size = startIndex - endIndex + 1;
-
-        // Fill array
-        items = new ISqwidMarketplace.Item[](size);
-        uint256 count;
-        uint256 createdItemIndex = createdItemCount + 1;
-        for (uint256 i = totalItemCount; count < size; i--) {
-            ISqwidMarketplace.Item memory item = marketplace.fetchItem(i);
-            if (item.creator == targetAddress) {
-                createdItemIndex--;
-                if (createdItemIndex <= startIndex) {
-                    items[count] = item;
-                    count++;
-                }
-            }
-        }
-
-        // Set total number of pages
-        totalPages = (createdItemCount + pageSize - 1) / pageSize;
-    }
-
-    /**
-     * Returns items positions from an address paginated (starting first last element).
-     */
-    function _fetchAddressPositions(
-        address targetAddress,
-        uint256 pageSize,
-        uint256 pageNumber
-    ) private view returns (PositionResponse[] memory positions, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
         uint256 endIndex = startIndex + pageSize - 1;
@@ -831,71 +502,18 @@ contract SqwidMarketplaceUtil is Ownable {
     }
 
     /**
-     * Returns items positions from an address paginated in reverse order
-     * (starting from last element).
+     * Returns item positions for a given state paginated.
      */
-    function _fetchAddressPositionsReverse(
-        address targetAddress,
-        uint256 pageSize,
-        uint256 pageNumber
-    ) private view returns (PositionResponse[] memory positions, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
-        // Get start and end index
-        uint256 totalPositionCount = marketplace.currentPositionId();
-        uint256 addressPositionCount;
-        for (uint256 i; i < totalPositionCount; i++) {
-            if (marketplace.fetchPosition(i + 1).owner == targetAddress) {
-                addressPositionCount++;
-            }
-        }
-        if (addressPositionCount == 0) {
-            if (pageNumber > 1) {
-                revert("SqwidMarketUtil: Invalid page number");
-            }
-            return (positions, 0);
-        }
-        if ((pageSize * (pageNumber - 1)) >= addressPositionCount) {
-            revert("SqwidMarketUtil: Invalid page number");
-        }
-        uint256 startIndex = addressPositionCount - (pageSize * (pageNumber - 1));
-        uint256 endIndex = 1;
-        if (startIndex > pageSize) {
-            endIndex = startIndex - pageSize + 1;
-        }
-        uint256 size = startIndex - endIndex + 1;
-
-        // Fill array
-        positions = new PositionResponse[](size);
-        uint256 count;
-        uint256 addressPositionIndex = addressPositionCount + 1;
-        for (uint256 i = totalPositionCount; count < size; i--) {
-            ISqwidMarketplace.Position memory position = marketplace.fetchPosition(i);
-            if (position.owner == targetAddress) {
-                addressPositionIndex--;
-                if (addressPositionIndex <= startIndex) {
-                    positions[count] = fetchPosition(i);
-                    count++;
-                }
-            }
-        }
-
-        // Set total number of pages
-        totalPages = (addressPositionCount + pageSize - 1) / pageSize;
-    }
-
-    /**
-     * Returns item positions for a given state paginated (starting from first element).
-     */
-    function _fetchPositionsByState(
+    function fetchPositionsByStatePage(
         ISqwidMarketplace.PositionState state,
         uint256 pageSize,
         uint256 pageNumber
-    ) private view returns (PositionResponse[] memory positions, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
+    )
+        external
+        view
+        pagination(pageSize, pageNumber)
+        returns (PositionResponse[] memory positions, uint256 totalPages)
+    {
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
         uint256 endIndex = startIndex + pageSize - 1;
@@ -934,53 +552,241 @@ contract SqwidMarketplaceUtil is Ownable {
     }
 
     /**
-     * Returns item positions for a given state paginated in reverse order
-     * (starting from last element).
+     * Returns number of items positions from an address.
      */
-    function _fetchPositionsByStateReverse(
-        ISqwidMarketplace.PositionState state,
-        uint256 pageSize,
-        uint256 pageNumber
-    ) private view returns (PositionResponse[] memory positions, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
-        // Get start and end index
-        uint256 totalStatePositions = marketplace.fetchStateCount(state);
-        if (totalStatePositions == 0) {
-            if (pageNumber > 1) {
-                revert("SqwidMarketUtil: Invalid page number");
-            }
-            return (positions, 0);
-        }
-        if ((pageSize * (pageNumber - 1)) >= totalStatePositions) {
-            revert("SqwidMarketUtil: Invalid page number");
-        }
-        uint256 startIndex = totalStatePositions - (pageSize * (pageNumber - 1));
-        uint256 endIndex = 1;
-        if (startIndex > pageSize) {
-            endIndex = startIndex - pageSize + 1;
-        }
-        uint256 size = startIndex - endIndex + 1;
-
-        // Fill array
-        positions = new PositionResponse[](size);
-        uint256 count;
-        uint256 statePositionCount = totalStatePositions + 1;
+    function fetchAddressNumberPositions(address targetAddress) external view returns (uint256) {
         uint256 totalPositionCount = marketplace.currentPositionId();
-        for (uint256 i = totalPositionCount; count < size; i--) {
-            ISqwidMarketplace.Position memory position = marketplace.fetchPosition(i);
-            if (position.positionId > 0 && position.state == state) {
-                statePositionCount--;
-                if (statePositionCount <= startIndex) {
-                    positions[count] = fetchPosition(i);
-                    count++;
+        uint256 positionCount = 0;
+        for (uint256 i; i < totalPositionCount; i++) {
+            ISqwidMarketplace.Position memory position = marketplace.fetchPosition(i + 1);
+            if (position.owner == targetAddress) {
+                positionCount++;
+            }
+        }
+
+        return positionCount;
+    }
+
+    //////////////////////////////////////////////////////////////////////////
+    /////////////////////////// AUCTIONS /////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+
+    /**
+     * Returns addresses and bids of an active auction.
+     */
+    function fetchAuctionBids(uint256 positionId)
+        public
+        view
+        returns (address[] memory, uint256[] memory)
+    {
+        ISqwidMarketplace.Position memory position = marketplace.fetchPosition(positionId);
+        require(
+            position.state == ISqwidMarketplace.PositionState.Auction,
+            "SqwidMarketUtil: Position on wrong state"
+        );
+
+        uint256 totalAddresses = marketplace.fetchAuctionData(positionId).totalAddresses;
+
+        // Initialize array
+        address[] memory addresses = new address[](totalAddresses);
+        uint256[] memory amounts = new uint256[](totalAddresses);
+
+        // Fill arrays
+        for (uint256 i; i < totalAddresses; i++) {
+            (address addr, uint256 amount) = marketplace.fetchBid(positionId, i);
+            addresses[i] = addr;
+            amounts[i] = amount;
+        }
+
+        return (addresses, amounts);
+    }
+
+    /**
+     * Returns bids by an address paginated.
+     */
+    function fetchAddressBidsPage(
+        address targetAddress,
+        uint256 pageSize,
+        uint256 pageNumber,
+        bool newestToOldest
+    )
+        external
+        view
+        pagination(pageSize, pageNumber)
+        returns (AuctionBidded[] memory bids, uint256 totalPages)
+    {
+        if (newestToOldest) {
+            return _fetchAddressBidsReverse(targetAddress, pageSize, pageNumber);
+        } else {
+            return _fetchAddressBids(targetAddress, pageSize, pageNumber);
+        }
+    }
+
+    /**
+     * Returns number of bids by an address.
+     */
+    function fetchAddressNumberBids(address targetAddress) external view returns (uint256) {
+        uint256 totalPositionCount = marketplace.currentPositionId();
+        uint256 addressBidCount;
+        for (uint256 i; i < totalPositionCount; i++) {
+            if (marketplace.fetchPosition(i + 1).state == ISqwidMarketplace.PositionState.Auction) {
+                (address[] memory addresses, ) = fetchAuctionBids(i + 1);
+                for (uint256 j; j < addresses.length; j++) {
+                    if (addresses[j] == targetAddress) {
+                        addressBidCount++;
+                    }
                 }
             }
         }
 
-        // Set total number pages
-        totalPages = (totalStatePositions + pageSize - 1) / pageSize;
+        return addressBidCount;
+    }
+
+    //////////////////////////////////////////////////////////////////////////
+    /////////////////////////// RAFFLES //////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+
+    /**
+     * Returns addresses and amounts of an active raffle.
+     */
+    function fetchRaffleEntries(uint256 positionId)
+        public
+        view
+        returns (address[] memory, uint256[] memory)
+    {
+        ISqwidMarketplace.Position memory position = marketplace.fetchPosition(positionId);
+        require(
+            position.state == ISqwidMarketplace.PositionState.Raffle,
+            "SqwidMarketUtil: Position on wrong state"
+        );
+
+        uint256 totalAddresses = marketplace.fetchRaffleData(positionId).totalAddresses;
+
+        // Initialize array
+        address[] memory addresses = new address[](totalAddresses);
+        uint256[] memory amounts = new uint256[](totalAddresses);
+
+        // Fill arrays
+        for (uint256 i; i < totalAddresses; i++) {
+            (address addr, uint256 amount) = marketplace.fetchRaffleEntry(positionId, i);
+            addresses[i] = addr;
+            amounts[i] = amount;
+        }
+
+        return (addresses, amounts);
+    }
+
+    /**
+     * Returns active raffles entered by an address paginated.
+     */
+    function fetchAddressRafflesPage(
+        address targetAddress,
+        uint256 pageSize,
+        uint256 pageNumber,
+        bool newestToOldest
+    )
+        external
+        view
+        pagination(pageSize, pageNumber)
+        returns (RaffleEntered[] memory raffles, uint256 totalPages)
+    {
+        if (newestToOldest) {
+            return _fetchAddressRafflesReverse(targetAddress, pageSize, pageNumber);
+        } else {
+            return _fetchAddressRaffles(targetAddress, pageSize, pageNumber);
+        }
+    }
+
+    /**
+     * Returns number active raffles entered by an address.
+     */
+    function fetchAddressNumberRaffles(address targetAddress) external view returns (uint256) {
+        uint256 totalPositionCount = marketplace.currentPositionId();
+        uint256 addressRaffleCount;
+        for (uint256 i; i < totalPositionCount; i++) {
+            if (marketplace.fetchPosition(i + 1).state == ISqwidMarketplace.PositionState.Raffle) {
+                (address[] memory addresses, ) = fetchRaffleEntries(i + 1);
+                for (uint256 j; j < addresses.length; j++) {
+                    if (addresses[j] == targetAddress) {
+                        addressRaffleCount++;
+                    }
+                }
+            }
+        }
+
+        return addressRaffleCount;
+    }
+
+    //////////////////////////////////////////////////////////////////////////
+    /////////////////////////// LOANS ////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+
+    /**
+     * Returns active loans funded by an address paginated.
+     */
+    function fetchAddressLoansPage(
+        address targetAddress,
+        uint256 pageSize,
+        uint256 pageNumber,
+        bool newestToOldest
+    )
+        external
+        view
+        pagination(pageSize, pageNumber)
+        returns (PositionResponse[] memory loans, uint256 totalPages)
+    {
+        if (newestToOldest) {
+            return _fetchAddressLoansReverse(targetAddress, pageSize, pageNumber);
+        } else {
+            return _fetchAddressLoans(targetAddress, pageSize, pageNumber);
+        }
+    }
+
+    /**
+     * Returns number active loans funded by an address paginated.
+     */
+    function fetchAddressNumberLoans(address targetAddress) external view returns (uint256) {
+        uint256 totalPositionCount = marketplace.currentPositionId();
+        uint256 addressLoanCount;
+        for (uint256 i; i < totalPositionCount; i++) {
+            if (
+                marketplace.fetchLoanData(i + 1).lender == targetAddress &&
+                marketplace.fetchPosition(i + 1).positionId > 0
+            ) {
+                addressLoanCount++;
+            }
+        }
+
+        return addressLoanCount;
+    }
+
+    //////////////////////////////////////////////////////////////////////////
+    /////////////////////////// PRIVATE //////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////
+
+    function _fetchPositionsByItemId(uint256 itemId)
+        private
+        view
+        returns (ISqwidMarketplace.Position[] memory)
+    {
+        // Initialize array
+        ISqwidMarketplace.Position[] memory items = new ISqwidMarketplace.Position[](
+            marketplace.fetchItem(itemId).positionCount
+        );
+
+        // Fill array
+        uint256 totalPositionCount = marketplace.currentPositionId();
+
+        uint256 currentIndex = 0;
+        for (uint256 i; i < totalPositionCount; i++) {
+            ISqwidMarketplace.Position memory position = marketplace.fetchPosition(i + 1);
+            if (position.itemId == itemId) {
+                items[currentIndex] = position;
+                currentIndex++;
+            }
+        }
+
+        return items;
     }
 
     /**
@@ -990,10 +796,7 @@ contract SqwidMarketplaceUtil is Ownable {
         address targetAddress,
         uint256 pageSize,
         uint256 pageNumber
-    ) internal view returns (AuctionBidded[] memory bids, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
+    ) private view returns (AuctionBidded[] memory bids, uint256 totalPages) {
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
         uint256 endIndex = startIndex + pageSize - 1;
@@ -1056,9 +859,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (AuctionBidded[] memory bids, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 totalPositionCount = marketplace.currentPositionId();
         uint256 addressBidCount;
@@ -1120,10 +920,7 @@ contract SqwidMarketplaceUtil is Ownable {
         address targetAddress,
         uint256 pageSize,
         uint256 pageNumber
-    ) internal view returns (RaffleEntered[] memory raffles, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
+    ) private view returns (RaffleEntered[] memory raffles, uint256 totalPages) {
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
         uint256 endIndex = startIndex + pageSize - 1;
@@ -1186,9 +983,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (RaffleEntered[] memory raffles, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 totalPositionCount = marketplace.currentPositionId();
         uint256 addressRaffleCount;
@@ -1251,9 +1045,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (PositionResponse[] memory loans, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 startIndex = pageSize * (pageNumber - 1) + 1;
         uint256 endIndex = startIndex + pageSize - 1;
@@ -1311,9 +1102,6 @@ contract SqwidMarketplaceUtil is Ownable {
         uint256 pageSize,
         uint256 pageNumber
     ) private view returns (PositionResponse[] memory loans, uint256 totalPages) {
-        require(pageNumber > 0, "SqwidMarketUtil: Page number cannot be 0");
-        require(pageSize <= 100 && pageSize > 0, "SqwidMarketUtil: Invalid page size");
-
         // Get start and end index
         uint256 totalPositionCount = marketplace.currentPositionId();
         uint256 addressLoanCount;
@@ -1363,30 +1151,20 @@ contract SqwidMarketplaceUtil is Ownable {
     }
 
     /**
-     * Returns item positions of a certain item.
+     * Returns whether a certain id is set to true (exists) by checking the byte
+     * byte of its corresponding position inside the packedBooleans variable.
      */
-    function _fetchPositionsByItemId(uint256 itemId)
+    function _checkExistsBytes(uint256 _id, bytes memory _packedBooleans)
         private
-        view
-        returns (ISqwidMarketplace.Position[] memory)
+        pure
+        returns (bool)
     {
-        // Initialize array
-        ISqwidMarketplace.Position[] memory items = new ISqwidMarketplace.Position[](
-            marketplace.fetchItem(itemId).positionCount
-        );
-
-        // Fill array
-        uint256 totalPositionCount = marketplace.currentPositionId();
-
-        uint256 currentIndex = 0;
-        for (uint256 i; i < totalPositionCount; i++) {
-            ISqwidMarketplace.Position memory position = marketplace.fetchPosition(i + 1);
-            if (position.itemId == itemId) {
-                items[currentIndex] = position;
-                currentIndex++;
-            }
+        if (_id >= _packedBooleans.length * 8) {
+            return false;
         }
-
-        return items;
+        uint8 b = uint8(_packedBooleans[_id / 8]);
+        uint8 mask = uint8((1 << (_id % 8)));
+        uint8 flag = b & mask;
+        return (flag != 0);
     }
 }

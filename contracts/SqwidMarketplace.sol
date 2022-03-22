@@ -480,7 +480,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         );
         require(amount > 0, "SqwidMarket: Amount cannot be 0");
         require(numMinutes >= 1 && numMinutes <= 44640, "SqwidMarket: Number of minutes invalid"); // 44,640 min = 1 month
-        // TODO change min numMinutes to 60 ?
 
         // Transfer ownership of the token to this contract
         ISqwidERC1155(nftContract).safeTransferFrom(msg.sender, address(this), tokenId, amount, "");
@@ -655,7 +654,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         );
         require(amount > 0, "SqwidMarket: Amount cannot be 0");
         require(numMinutes >= 1 && numMinutes <= 44640, "SqwidMarket: Number of minutes invalid"); // 44,640 min = 1 month
-        // TODO change min numMinutes to 60 ?
 
         // Transfer ownership of the token to this contract
         ISqwidERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
@@ -826,7 +824,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         require(tokenAmount > 0, "SqwidMarket: Token amount cannot be 0");
         require(numMinutes >= 1 && numMinutes <= 525600, "SqwidMarket: Number of minutes invalid");
         // 1,440 min = 1 day - 525,600 min = 1 year
-        // TODO change min numMinutes to 1440
 
         // Transfer ownership of the token to this contract
         ISqwidERC1155(_idToItem[itemId].nftContract).safeTransferFrom(
