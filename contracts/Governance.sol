@@ -23,7 +23,7 @@ contract SqwidGovernance {
         uint256 numConfirmations;
     }
 
-    address[] public owners;
+    address[] private owners;
     uint256 public minConfirmationsRequired;
     mapping(address => uint256) public addressBalance;
     mapping(address => bool) public isOwner;
@@ -123,15 +123,31 @@ contract SqwidGovernance {
     ///////////////////////////// TX WITHOUT APPROVAL /////////////////////////////////////
     ///////////////////// Any of the owners can execute them //////////////////////////////
 
+    /**
+     * Withdraws available balance from marketplace contract.
+     */
     function transferFromMarketplace(ISqwidMarketplace _marketplace) external onlyOwner {
         _marketplace.withdraw();
     }
 
-    function withdraw() external onlyOwner {
+    /**
+     * Returns available balance to be shared among all the owners.
+     */
+    function getAvailableBalance() public view returns (uint256) {
         uint256 availableBalance = address(this).balance;
         for (uint256 i; i < owners.length; i++) {
             availableBalance -= addressBalance[owners[i]];
         }
+
+        return availableBalance;
+    }
+
+    /**
+     * Shares available balance (if any) among all the owners and increments their balances.
+     * Withdraws balance of the caller.
+     */
+    function withdraw() external onlyOwner {
+        uint256 availableBalance = getAvailableBalance();
 
         if (availableBalance >= owners.length) {
             uint256 share = availableBalance / owners.length;
@@ -147,13 +163,43 @@ contract SqwidGovernance {
         payable(msg.sender).transfer(amount);
     }
 
+    /**
+     * Returns array of owners.
+     */
     function getOwners() external view returns (address[] memory) {
         return owners;
+    }
+
+    /**
+     * Returns total number of transaction proposals.
+     */
+    function transactionsCount() external view returns (uint256) {
+        return transactions.length;
+    }
+
+    /**
+     * Returns total number of owners change proposals.
+     */
+    function ownersChangesCount() external view returns (uint256) {
+        return ownersChanges.length;
+    }
+
+    /**
+     * Returns total number of minimum confirmations change proposals.
+     */
+    function minConfirmationsChangesCount() external view returns (uint256) {
+        return minConfirmationsChanges.length;
     }
 
     //////////////////////// EXTERNAL TX WITH APPROVAL ////////////////////////////////////
     ///////////// Requires a minimum of confirmations to be executed //////////////////////
 
+    /**
+     * Creates a proposal for an external transaction.
+     *      `_to`: address to be called
+     *      `_value`: value of Reef to be sent
+     *      `_data`: data to be sent
+     */
     function proposeTransaction(
         address _to,
         uint256 _value,
@@ -176,6 +222,9 @@ contract SqwidGovernance {
         emit ProposeTransaction(msg.sender, txIndex, _to, _value, _data);
     }
 
+    /**
+     * Approves a transaction.
+     */
     function approveTransaction(uint256 _txIndex)
         public
         onlyOwner
@@ -188,6 +237,10 @@ contract SqwidGovernance {
         txApproved[_txIndex][msg.sender] = true;
     }
 
+    /**
+     * Executes a transaction.
+     * It should have the minimum number of confirmations required in order to be executed.
+     */
     function executeTransaction(uint256 _txIndex)
         public
         onlyOwner
@@ -212,6 +265,11 @@ contract SqwidGovernance {
     //////////////////////// INTERNAL TX WITH APPROVAL ////////////////////////////////////
     ///////////// Requires a minimum of confirmations to be executed //////////////////////
 
+    /**
+     * Creates a proposal for a change in the list of owners.
+     *      `_ownerChanged`: address of the owner to be changed
+     *      `_addToList`: true --> add new owner / false --> remove existing owner
+     */
     function proposeOwnersChange(address _ownerChanged, bool _addToList) external onlyOwner {
         uint256 ownersChangeIndex = ownersChanges.length;
 
@@ -228,6 +286,9 @@ contract SqwidGovernance {
         emit ProposeOwnersChange(msg.sender, ownersChangeIndex, _ownerChanged, _addToList);
     }
 
+    /**
+     * Approves a change in the owners list.
+     */
     function approveOwnersChange(uint256 _ownersChangeIndex)
         public
         onlyOwner
@@ -242,6 +303,10 @@ contract SqwidGovernance {
         ownersChangeApproved[_ownersChangeIndex][msg.sender] = true;
     }
 
+    /**
+     * Executes a change in the owners list.
+     * It should have the minimum number of confirmations required in order to do the change.
+     */
     function executeOwnersChange(uint256 _ownersChangeIndex)
         public
         onlyOwner
@@ -283,6 +348,11 @@ contract SqwidGovernance {
         emit ExecuteOwnersChange(msg.sender, _ownersChangeIndex);
     }
 
+    /**
+     * Creates a proposal for a change in the minimum number of confirmations required to execute
+     * transactions, changes in owners and changes in minum number of confirmations.
+     *      `_newValue`: new value for the minimum number of confirmations required
+     */
     function proposeMinConfirmationsChange(uint256 _newValue) external onlyOwner {
         uint256 minConfirmationsChangeIndex = minConfirmationsChanges.length;
 
@@ -295,6 +365,9 @@ contract SqwidGovernance {
         emit ProposeMinConfirmationsChange(msg.sender, minConfirmationsChangeIndex, _newValue);
     }
 
+    /**
+     * Approves a change in the minimum number of confirmations required.
+     */
     function approveMinConfirmationsChange(uint256 _minConfirmationsChangeIndex)
         public
         onlyOwner
@@ -311,6 +384,10 @@ contract SqwidGovernance {
         minConfirmationsChangeApproved[_minConfirmationsChangeIndex][msg.sender] = true;
     }
 
+    /**
+     * Executes a change in the minimum number of confirmations required.
+     * It should have the minimum number of confirmations required in order to be executed.
+     */
     function executeMinConfirmationsChange(uint256 _minConfirmationsChangeIndex)
         public
         onlyOwner
@@ -339,6 +416,7 @@ contract SqwidGovernance {
     /**
      * Resets all proposals confirmations count after the owners list or the
      * minConfirmationsRequired value have been modified.
+     * Existing approvals for those proposals are invalidated.
      */
     function _resetProposals() private {
         for (uint256 i; i < transactions.length; i++) {

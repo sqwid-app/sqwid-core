@@ -55,9 +55,6 @@ describe("************ Governance ******************", () => {
         expect(owners[0]).to.equal(owner1Address);
         expect(owners[1]).to.equal(owner2Address);
         expect(owners[2]).to.equal(owner3Address);
-        expect(await governance.owners(0)).to.equal(owner1Address);
-        expect(await governance.owners(1)).to.equal(owner2Address);
-        expect(await governance.owners(2)).to.equal(owner3Address);
         expect(Number(await governance.minConfirmationsRequired())).to.equal(2);
     });
 
