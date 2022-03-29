@@ -44,6 +44,7 @@ module.exports = {
                 account4: SEEDS.account4,
                 account5: SEEDS.account5,
                 account6: SEEDS.account6,
+                account7: SEEDS.account7,
             },
         },
         reef_mainnet: {
@@ -61,7 +62,7 @@ module.exports = {
         market: "0xA49Dc534bf6e08e6b8DFB4735045DB2c2e39B933",
         nft: "0x121485804cBC301BBD12931C7746b50e4BC4755F",
         util: "0x72adD7170A7479c0F0543a502a80C74d070DCbd9",
-        governance: "0x46d021C687bD5f552dF4A86D21E26591cc42dE85",
+        governance: "0x0923CDe2AAd550Fd1399396F2494CACF83f49dB0",
         balanceHelper: "0x6aC1413A64b153aA16fabbD9F97D30dC2CDE2604",
         gasBurner: "0xE6a505Fd9868AFd411EcB93d46EbB892Eb24E501",
         dummyERC721: "0xf5c05d8013724AC037eE6AD9CCea04905384bacE",

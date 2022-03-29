@@ -914,7 +914,7 @@ contract MarketMigrationSample is ISqwidMigrator, ERC1155Holder, Ownable, Reentr
             revert MarketErrors.Market_AddressBalanceTooLow();
         if (loanAmount == 0) revert MarketErrors.Market_LoanAmountZero();
         if (tokenAmount == 0) revert MarketErrors.Market_AmountZero();
-        if (numMinutes == 1 || numMinutes > 525600)
+        if (numMinutes == 0 || numMinutes > 525600)
             revert MarketErrors.Market_InvalidNumberMinutes();
         // 1,440 min = 1 day - 525,600 min = 1 year
         // TODO change min numMinutes to 1440

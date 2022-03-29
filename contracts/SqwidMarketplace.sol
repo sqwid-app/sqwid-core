@@ -590,7 +590,7 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
             _idToItem[itemId].sales.push(
                 ItemSale(seller, receiver, _idToAuctionData[positionId].highestBid, amount)
             );
-            // Send back bids to other bidders
+            // Update balance to other bidders
             uint256 totalAddresses = _idToAuctionData[positionId].totalAddresses;
             for (uint256 i; i < totalAddresses; i++) {
                 address addr = _idToAuctionData[positionId].indexToAddress[i];
