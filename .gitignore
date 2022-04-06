@@ -20,3 +20,4 @@ seeds.json
 notes.txt
 TODO.txt
 *.temp-file
+.temp
