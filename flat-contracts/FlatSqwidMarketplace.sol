@@ -352,7 +352,6 @@ contract SqwidMarketplace is ERC1155Holder, Ownable, ReentrancyGuard {
         _idToItem[itemId].nftContract = address(sqwidERC1155);
         _idToItem[itemId].tokenId = tokenId;
         _idToItem[itemId].creator = msg.sender;
-        _idToItem[itemId].positionCount = 0;
 
         _updateAvailablePosition(itemId, msg.sender);
 

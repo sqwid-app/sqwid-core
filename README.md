@@ -43,10 +43,12 @@ To reuse a contract already deployed, set its address in the _hardhat.config.js_
 
 ## Use account seeds
 
-In order to use your Reef account to deploy the contracts or run the tests, you have to rename the _seeds.example.json_ file to _seeds.json_ and write your set your seed words there.
+In order to use your Reef account to deploy the contracts or run the tests, you have to rename the _seeds.example.json_ file to _seeds.json_ and set your seed words there.
+
+## Diagram
+
+![diagram](sqwid-diagram-v02.png)
 
 ## License
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
-
-![diagram](sqwid-diagram-v02.png)
