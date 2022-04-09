@@ -1,5 +1,5 @@
 const { expect, assert } = require("chai");
-const { getMainContracts, throwsException } = require("./util");
+const { getMainContracts, throwsException, toReef } = require("./util");
 
 describe("************ NFT ******************", () => {
     let token1Id, token2Id, token3Id;
@@ -18,7 +18,7 @@ describe("************ NFT ******************", () => {
 
         // Initialize global variables
         marketFee = 250; // 2.5%
-        salePrice = ethers.utils.parseUnits("50", "ether");
+        salePrice = toReef(50);
         royaltyValue = 1000; // 10%
 
         // Deploy or get existing contracts

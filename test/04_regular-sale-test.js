@@ -1,5 +1,12 @@
 const { expect } = require("chai");
-const { getMainContracts, getBalanceHelper, getBalance, throwsException } = require("./util");
+const {
+    getMainContracts,
+    getBalanceHelper,
+    getBalance,
+    throwsException,
+    toReef,
+    toWei,
+} = require("./util");
 
 describe("************ Regular sale ******************", () => {
     let token1Id, token2Id, item1Id, item2Id, position1Id, position2Id;
@@ -20,8 +27,8 @@ describe("************ Regular sale ******************", () => {
 
         // Initialize global variables
         marketFee = 250; // 2.5%
-        maxGasFee = ethers.utils.parseUnits("10", "ether");
-        salePrice = ethers.utils.parseUnits("50", "ether");
+        maxGasFee = toReef(10);
+        salePrice = toReef(50);
         royaltyValue = 1000; // 10%
 
         // Deploy or get existing contracts
@@ -134,9 +141,9 @@ describe("************ Regular sale ******************", () => {
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
         const endBuyer1TokenAmount = await nft.balanceOf(buyer1Address, token1Id);
         const royaltiesAmountRaw = (salePrice * royaltyValue) / 10000;
-        const royaltiesAmount = ethers.utils.parseUnits(royaltiesAmountRaw.toString(), "wei");
+        const royaltiesAmount = toWei(royaltiesAmountRaw);
         const marketFeeAmountRaw = ((salePrice - royaltiesAmount) * marketFee) / 10000;
-        const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
+        const marketFeeAmount = toWei(marketFeeAmountRaw);
         const item = await marketUtil.fetchItem(item1Id);
         const endNumAvailablePositions = Number(await market.fetchStateCount(0));
 
@@ -225,6 +232,9 @@ describe("************ Regular sale ******************", () => {
         }
         console.log(`\tGasBurner contract deployed in ${gasBurner.address}`);
 
+        // Initial data
+        const iniMarketGasBurnerBalance = await market.addressBalance(gasBurner.address);
+
         // Create token and add to the market
         console.log("\tcreating market item...");
         const tx1 = await market
@@ -247,12 +257,12 @@ describe("************ Regular sale ******************", () => {
         await market.connect(buyer1).createSale(position1Id, 1, { value: salePrice });
 
         // Final data
-        const royaltiesAmountRaw = (salePrice * royaltyValue) / 10000;
-        const royaltiesAmount = ethers.utils.parseUnits(royaltiesAmountRaw.toString(), "wei");
+        const endMarketGasBurnerBalance = await market.addressBalance(gasBurner.address);
+        const royaltiesAmount = (salePrice * royaltyValue) / 10000;
 
         // Evaluate results
-        expect(Number(await market.addressBalance(gasBurner.address))).to.equal(
-            Number(royaltiesAmount)
+        expect(Number(endMarketGasBurnerBalance.sub(iniMarketGasBurnerBalance))).to.equal(
+            royaltiesAmount
         );
     });
 });

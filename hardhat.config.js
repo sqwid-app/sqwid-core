@@ -22,7 +22,7 @@ module.exports = {
     solidity: "0.8.4",
     defaultNetwork: "reef_testnet",
     networks: {
-        reef_local: {
+        reef: {
             url: "ws://127.0.0.1:9944",
             scanUrl: "http://localhost:8000",
             seeds: {

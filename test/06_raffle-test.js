@@ -5,6 +5,8 @@ const {
     getBalance,
     throwsException,
     delay,
+    toReef,
+    toWei,
 } = require("./util");
 
 describe("************ Raffles ******************", () => {
@@ -29,10 +31,10 @@ describe("************ Raffles ******************", () => {
 
         // Initialize global variables
         marketFee = 250; // 2.5%
-        maxGasFee = ethers.utils.parseUnits("10", "ether");
+        maxGasFee = toReef(10);
         numMinutes = 1;
-        buyer1RaffleAmount = ethers.utils.parseUnits("100", "ether");
-        buyer2RaffleAmount = ethers.utils.parseUnits("50", "ether");
+        buyer1RaffleAmount = toReef(100);
+        buyer2RaffleAmount = toReef(50);
         royaltyValue = 1000; // 10%
         tokensAmount = 15;
 
@@ -195,11 +197,11 @@ describe("************ Raffles ******************", () => {
         const endMarketBalance = await getBalance(balanceHelper, market.address, "market");
         const royaltiesAmountRaw =
             (buyer1RaffleAmount.add(buyer2RaffleAmount) * royaltyValue) / 10000;
-        const royaltiesAmount = ethers.utils.parseUnits(royaltiesAmountRaw.toString(), "wei");
+        const royaltiesAmount = toWei(royaltiesAmountRaw);
         const marketFeeAmountRaw =
             ((buyer1RaffleAmount.add(buyer2RaffleAmount) - royaltiesAmount) * marketFee) / 10000;
         await getBalance(balanceHelper, helperAddress, "helper");
-        const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
+        const marketFeeAmount = toWei(marketFeeAmountRaw);
         const endBuyer1TokenAmount = Number(await nft.balanceOf(buyer1Address, tokenId));
         const endBuyer2TokenAmount = Number(await nft.balanceOf(buyer2Address, tokenId));
         const endMarketTokenAmount = Number(await nft.balanceOf(market.address, tokenId));

@@ -1,6 +1,6 @@
 const { expect, assert } = require("chai");
 const { ethers } = require("ethers");
-const { getMainContracts, throwsException } = require("./util");
+const { getMainContracts, throwsException, toReef } = require("./util");
 
 describe("************ Migration ******************", () => {
     let currItemId, utilContractV2Address;
@@ -21,10 +21,10 @@ describe("************ Migration ******************", () => {
         artistAddress = await artist.getAddress();
 
         // Initialize global variables
-        maxGasFee = ethers.utils.parseUnits("10", "ether");
+        maxGasFee = toReef(10);
         royaltyValue = 1000; // 10%
         marketFee = 250; // 2.5%
-        salePrice = ethers.utils.parseUnits("5", "ether");
+        salePrice = toReef(5);
 
         // Deploy or get existing contracts
         const contracts = await getMainContracts(marketFee, owner);

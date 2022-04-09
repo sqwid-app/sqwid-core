@@ -5,6 +5,8 @@ const {
     getBalance,
     throwsException,
     delay,
+    toReef,
+    toWei,
 } = require("./util");
 
 describe("************ Auctions ******************", () => {
@@ -27,15 +29,15 @@ describe("************ Auctions ******************", () => {
 
         // Initialize global variables
         marketFee = 250; // 2.5%
-        maxGasFee = ethers.utils.parseUnits("10", "ether");
+        maxGasFee = toReef(10);
         numMinutes = 11;
-        minBid = ethers.utils.parseUnits("50", "ether");
+        minBid = toReef(50);
         tokensAmount = 8;
-        bid1Amount = ethers.utils.parseUnits("49", "ether"); // bid user 1
-        bid2Amount = ethers.utils.parseUnits("60", "ether"); // bid user 1
-        bid3Amount = ethers.utils.parseUnits("62", "ether"); // bid user 2
-        bid4Amount = ethers.utils.parseUnits("1", "ether"); // bid user 2
-        bid5Amount = ethers.utils.parseUnits("4", "ether"); // bid user 1
+        bid1Amount = toReef(49); // bid user 1
+        bid2Amount = toReef(60); // bid user 1
+        bid3Amount = toReef(62); // bid user 2
+        bid4Amount = toReef(1); // bid user 2
+        bid5Amount = toReef(4); // bid user 1
         royaltyValue = 1000; // 10%
 
         // Deploy or get existing contracts
@@ -267,10 +269,10 @@ describe("************ Auctions ******************", () => {
         const endBuyer2MarketBalance = await market.addressBalance(buyer2Address);
         const endMarketBalance = await getBalance(balanceHelper, market.address, "market");
         const royaltiesAmountRaw = (bid2Amount.add(bid5Amount) * royaltyValue) / 10000;
-        const royaltiesAmount = ethers.utils.parseUnits(royaltiesAmountRaw.toString(), "wei");
+        const royaltiesAmount = toWei(royaltiesAmountRaw);
         const marketFeeAmountRaw =
             (bid2Amount.add(bid5Amount).sub(royaltiesAmount) * marketFee) / 10000;
-        const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
+        const marketFeeAmount = toWei(marketFeeAmountRaw);
         const endBuyer1TokenAmount = await nft.balanceOf(buyer1Address, tokenId);
         const endNumAuctions = Number(await market.fetchStateCount(2));
 

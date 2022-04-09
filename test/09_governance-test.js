@@ -1,5 +1,11 @@
 const { expect, assert } = require("chai");
-const { getMainContracts, getBalanceHelper, getBalance, throwsException } = require("./util");
+const {
+    getMainContracts,
+    getBalanceHelper,
+    getBalance,
+    throwsException,
+    toReef,
+} = require("./util");
 
 describe("************ Governance ******************", () => {
     before(async () => {
@@ -22,7 +28,7 @@ describe("************ Governance ******************", () => {
         user2Address = await user2.getAddress();
 
         // Initialize global variables
-        maxGasFee = ethers.utils.parseUnits("10", "ether");
+        maxGasFee = toReef(10);
         royaltyValue = 1000; // 10%
         marketFee = 250;
 
@@ -121,7 +127,7 @@ describe("************ Governance ******************", () => {
         }
 
         // Initial data
-        const salePrice = ethers.utils.parseUnits("100", "ether");
+        const salePrice = toReef(100);
         const iniOwnerMarketBalance = await market.addressBalance(governanceAddress);
 
         // Approve market contract
@@ -188,7 +194,7 @@ describe("************ Governance ******************", () => {
         const iniOwner3Balance = await getBalance(balanceHelper, owner3Address, "owner3");
         await governance.connect(owner3).withdraw();
         expect(Number(await getBalance(balanceHelper, governanceAddress, ""))).to.lt(
-            Number(ethers.utils.parseUnits("1", "ether"))
+            Number(toReef(1))
         ); // Some "wei" (smallest unit) will remain in the contract when received amount is not multiple of owners.length
         expect(Number(await governance.addressBalance(owner1Address))).to.equal(0);
         expect(Number(await governance.addressBalance(owner2Address))).to.equal(0);

@@ -5,6 +5,8 @@ const {
     getBalance,
     throwsException,
     delay,
+    toReef,
+    toWei,
 } = require("./util");
 
 describe("************ Loans ******************", () => {
@@ -24,9 +26,9 @@ describe("************ Loans ******************", () => {
         artistAddress = await artist.getAddress();
 
         // Initialize global variables
-        maxGasFee = ethers.utils.parseUnits("10", "ether");
-        loanAmount = ethers.utils.parseUnits("200", "ether");
-        feeAmount = ethers.utils.parseUnits("20", "ether");
+        maxGasFee = toReef(10);
+        loanAmount = toReef(200);
+        feeAmount = toReef(20);
         loanDuration = 1; // Min loan duration is 1440 min. Change in contract to 1 min for testing.
         royaltyValue = 1000; // 10%
         token1Amount = 1000;
@@ -149,7 +151,7 @@ describe("************ Loans ******************", () => {
         const endOwnerMarketBalance = await market.addressBalance(ownerAddress);
         deadline = new Date(loan.loanData.deadline * 1000);
         const marketFeeAmountRaw = (loanAmount * marketFee) / 10000;
-        const marketFeeAmount = ethers.utils.parseUnits(marketFeeAmountRaw.toString(), "wei");
+        const marketFeeAmount = toWei(marketFeeAmountRaw);
         const endLenderNumLoans = Number(await marketUtil.fetchAddressNumberLoans(lenderAddress));
         const lenderLoans = await getAllAddressLoans(lenderAddress);
 

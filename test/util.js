@@ -1,4 +1,13 @@
 const { expect } = require("chai");
+const { reef } = require("hardhat");
+
+exports.toReef = (value) => {
+    return ethers.utils.parseUnits(value.toString(), "ether");
+};
+
+exports.toWei = (value) => {
+    return ethers.utils.parseUnits(value.toString(), "wei");
+};
 
 exports.getBalance = async (balanceHelper, address, name) => {
     const balance = await balanceHelper.balanceOf(address);
