@@ -16,7 +16,7 @@ async function main() {
     await hre.reef.verifyContract(nft.address, "SqwidERC1155", []);
 
     // Deploy SqwidMarketplace
-    const Marketplace = await hre.reef.getContractFactory("SqwidMarketplace", ownerAccount);
+    const Marketplace = await hre.reef.getContractFactory("SqwidMarketplace", deployerAccount);
     const marketFee = 250; // 2.5%
     const marketplace = await Marketplace.deploy(marketFee, nft.address);
     await marketplace.deployed();
@@ -27,7 +27,7 @@ async function main() {
     ]);
 
     // Deploy SqwidMarketplaceUtil
-    const MarketUtil = await hre.reef.getContractFactory("SqwidMarketplaceUtil", ownerAccount);
+    const MarketUtil = await hre.reef.getContractFactory("SqwidMarketplaceUtil", deployerAccount);
     const marketUtil = await MarketUtil.deploy(marketplace.address);
     await marketUtil.deployed();
     console.log(`SqwidMarketplaceUtil deployed in ${marketUtil.address}`);
