@@ -320,7 +320,8 @@ contract MarketMigrationSample is ISqwidMigrator, ERC1155Holder, Ownable, Reentr
         if (amount == 0) revert MarketErrors.Market_NoReefToBeClaimed();
 
         addressBalance[msg.sender] = 0;
-        payable(msg.sender).transfer(amount);
+        (bool success, ) = msg.sender.call{ value: amount }("");
+        require(success, "Migrator: Error sending REEF");
 
         emit BalanceUpdated(msg.sender, 0);
     }
@@ -986,7 +987,10 @@ contract MarketMigrationSample is ISqwidMigrator, ERC1155Holder, Ownable, Reentr
         _updateBalance(owner(), marketFeeAmount);
 
         // Transfer funds to borrower
-        payable(_idToPosition[positionId].owner).transfer(msg.value - marketFeeAmount);
+        (bool success, ) = _idToPosition[positionId].owner.call{
+            value: msg.value - marketFeeAmount
+        }("");
+        require(success, "Migrator: Error sending REEF");
 
         emit LoanFunded(positionId, msg.sender);
     }
@@ -1006,7 +1010,10 @@ contract MarketMigrationSample is ISqwidMigrator, ERC1155Holder, Ownable, Reentr
             revert MarketErrors.Market_InvalidValueSent();
 
         // Transfer funds to lender
-        if (!payable(lender).send(msg.value)) _updateBalance(lender, msg.value);
+        (bool success, ) = lender.call{ value: msg.value }("");
+        if (!success) {
+            _updateBalance(lender, msg.value);
+        }
 
         uint256 itemId = _idToPosition[positionId].itemId;
         uint256 amount = _idToPosition[positionId].amount;
@@ -1208,7 +1215,8 @@ contract MarketMigrationSample is ISqwidMigrator, ERC1155Holder, Ownable, Reentr
 
         // Transfer royalties to rightholder if amount is not 0
         if (royaltiesAmount > 0) {
-            if (!payable(royaltiesReceiver).send(royaltiesAmount)) {
+            (bool success, ) = royaltiesReceiver.call{ value: royaltiesAmount }("");
+            if (!success) {
                 _updateBalance(royaltiesReceiver, royaltiesAmount);
             }
         }
@@ -1262,7 +1270,8 @@ contract MarketMigrationSample is ISqwidMigrator, ERC1155Holder, Ownable, Reentr
         uint256 netSaleValue = saleValue - marketFeeAmount;
 
         // Transfer value of the transaction to the seller
-        if (!seller.send(netSaleValue)) {
+        (bool success, ) = seller.call{ value: netSaleValue }("");
+        if (!success) {
             _updateBalance(seller, netSaleValue);
         }
 

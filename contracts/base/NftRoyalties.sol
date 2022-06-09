@@ -13,6 +13,8 @@ contract NftRoyalties is ERC165, INftRoyalties {
         uint24 amount;
     }
 
+    uint256 public constant MAX_ROYALTY_VALUE = 5000;
+
     mapping(uint256 => RoyaltyInfo) private _royalties;
 
     /**
@@ -51,7 +53,7 @@ contract NftRoyalties is ERC165, INftRoyalties {
         address recipient,
         uint256 value
     ) internal {
-        require(value <= 5000, "NftRoyalties: Royalties higher than 5000");
+        require(value <= MAX_ROYALTY_VALUE, "NftRoyalties: Royalties higher than 5000");
         _royalties[tokenId] = RoyaltyInfo(recipient, uint24(value));
     }
 }

@@ -39,6 +39,8 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, NftMimeTypes, 
     ) public returns (uint256) {
         require(to != address(0), "ERC1155: mint to the zero address");
         require(amount > 0, "ERC1155: amount has to be larger than 0");
+        require(bytes(tokenURI).length > 0, "ERC1155: tokenURI has to be non-empty");
+
         _tokenIds.increment();
         uint256 tokenId = _tokenIds.current();
 
@@ -82,6 +84,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, NftMimeTypes, 
 
         uint256[] memory ids = new uint256[](amounts.length);
         for (uint256 i = 0; i < amounts.length; i++) {
+            require(bytes(tokenURIs[i]).length > 0, "ERC1155: tokenURI has to be non-empty");
             _tokenIds.increment();
             ids[i] = _tokenIds.current();
         }
@@ -326,7 +329,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, NftMimeTypes, 
 
         IERC721(extNftContract).safeTransferFrom(msg.sender, address(this), extTokenId);
 
-        uint256 tokenId = _getWrappedTokenId(extNftContract, extTokenId);
+        uint256 tokenId = _extTokenIdToTokenId[extNftContract][extTokenId];
         if (tokenId > 0) {
             // Update amount for existing wrapped token
             _increaseSupply(tokenId, 1);
@@ -344,8 +347,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, NftMimeTypes, 
             tokenId = mint(msg.sender, 1, uri_, mimeType_, royaltyRecipient, royaltyValue);
 
             _wrappedTokens[tokenId] = WrappedToken(tokenId, true, extTokenId, extNftContract);
-            _wrappedCounter.increment();
-            _wrappedIdToTokenId[_wrappedCounter.current()] = tokenId;
+            _extTokenIdToTokenId[extNftContract][extTokenId] = tokenId;
         }
 
         emit WrapToken(tokenId, true, extTokenId, extNftContract, 1, true);
@@ -358,8 +360,8 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, NftMimeTypes, 
      */
     function unwrapERC721(uint256 tokenId) external override {
         require(balanceOf(msg.sender, tokenId) == 1, "ERC1155: Not token owned to unwrap");
-
         WrappedToken memory wrappedToken = getWrappedToken(tokenId);
+        require(wrappedToken.isErc721, "ERC1155: Token is not ERC721");
 
         burn(msg.sender, tokenId, 1);
 
@@ -409,7 +411,7 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, NftMimeTypes, 
             ""
         );
 
-        uint256 tokenId = _getWrappedTokenId(extNftContract, extTokenId);
+        uint256 tokenId = _extTokenIdToTokenId[extNftContract][extTokenId];
         if (tokenId > 0) {
             // Update amount for existing wrapped token
             _increaseSupply(tokenId, amount);
@@ -424,11 +426,10 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, NftMimeTypes, 
                 );
             }
             string memory uri_ = IERC1155MetadataURI(extNftContract).uri(extTokenId);
-
             tokenId = mint(msg.sender, amount, uri_, mimeType_, royaltyRecipient, royaltyValue);
+
             _wrappedTokens[tokenId] = WrappedToken(tokenId, false, extTokenId, extNftContract);
-            _wrappedCounter.increment();
-            _wrappedIdToTokenId[_wrappedCounter.current()] = tokenId;
+            _extTokenIdToTokenId[extNftContract][extTokenId] = tokenId;
         }
 
         emit WrapToken(tokenId, false, extTokenId, extNftContract, amount, true);
@@ -442,8 +443,8 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, NftMimeTypes, 
     function unwrapERC1155(uint256 tokenId) external override {
         uint256 balance = balanceOf(msg.sender, tokenId);
         require(balance > 0, "ERC1155: Not enough tokens owner");
-
         WrappedToken memory wrappedToken = getWrappedToken(tokenId);
+        require(!wrappedToken.isErc721, "ERC1155: Token is not ERC1155");
 
         burn(msg.sender, wrappedToken.tokenId, balance);
 
@@ -606,16 +607,6 @@ contract SqwidERC1155 is Context, ERC165, IERC1155, NftRoyalties, NftMimeTypes, 
                 revert("ERC1155: Transfer to non ERC1155Receiver");
             }
         }
-    }
-
-    /**
-     * Wraps a uint256 into an array.
-     */
-    function _asSingletonArray(uint256 element) private pure returns (uint256[] memory) {
-        uint256[] memory array = new uint256[](1);
-        array[0] = element;
-
-        return array;
     }
 
     /**

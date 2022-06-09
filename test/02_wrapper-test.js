@@ -93,6 +93,29 @@ describe("************ Wrapper ******************", () => {
         );
     });
 
+    it("Should not allow to unwrap ERC721 if token sent is ERC1155", async () => {
+        // Create dummy ERC1155 token
+        console.log(`\tcreating dummy ERC1155 token...`);
+        const tx1 = await dummyERC1155.connect(user2).mint(user2Address, 1);
+        const receipt1 = await tx1.wait();
+        const tokenId = Number(receipt1.events[0].args[3]);
+        console.log(`\tToken id: ${tokenId}`);
+
+        console.log("\twrapping ERC1155 token...");
+        const tx2 = await sqwidNft
+            .connect(user2)
+            .wrapERC1155(dummyERC1155Address, tokenId, "image", 1);
+        const receipt2 = await tx2.wait();
+        const wrappedTokenId = receipt2.events[1].args[3];
+        console.log(`\tToken wrapped into token ${wrappedTokenId}.`);
+
+        console.log("\tunwrapping ERC721 token...");
+        await throwsException(
+            sqwidNft.connect(user2).unwrapERC721(wrappedTokenId),
+            "ERC1155: Token is not ERC721"
+        );
+    });
+
     it("Should unwrap ERC721", async () => {
         console.log("\tunwrapping token 1...");
         await sqwidNft.connect(user1).unwrapERC721(wrappedToken1Id);
@@ -147,6 +170,27 @@ describe("************ Wrapper ******************", () => {
         await throwsException(
             sqwidNft.connect(user1).unwrapERC1155(wrappedToken1Id),
             "ERC1155: Not enough tokens owner"
+        );
+    });
+
+    it("Should not allow to unwrap ERC1155 if token sent is ERC721", async () => {
+        // Create dummy ERC721 token
+        console.log(`\tcreating dummy ERC721 token...`);
+        const tx1 = await dummyERC721.connect(user1).mint(user1Address, "fake-uri");
+        const receipt1 = await tx1.wait();
+        const tokenId = Number(receipt1.events[0].args.tokenId);
+        console.log(`\tToken id: ${tokenId}`);
+
+        console.log("\twrapping ERC721 token...");
+        const tx2 = await sqwidNft.connect(user1).wrapERC721(dummyERC721Address, tokenId, "image");
+        const receipt2 = await tx2.wait();
+        const wrappedTokenId = receipt2.events[2].args[3];
+        console.log(`\tToken wrapped into token ${wrappedTokenId}.`);
+
+        console.log("\tunwrapping ERC1155 token...");
+        await throwsException(
+            sqwidNft.connect(user1).unwrapERC1155(wrappedTokenId),
+            "ERC1155: Token is not ERC1155"
         );
     });
 

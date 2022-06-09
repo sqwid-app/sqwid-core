@@ -7,13 +7,10 @@ import "../../@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "../../@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "../../@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
 import "../../@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import "../../@openzeppelin/contracts/utils/Counters.sol";
 import "../interface/ISqwidERC1155.sol";
 import "../interface/INftRoyalties.sol";
 
 abstract contract SqwidERC1155Wrapper is ERC721Holder, ERC1155Holder {
-    using Counters for Counters.Counter;
-
     struct WrappedToken {
         uint256 tokenId; // SqwidERC1155 token id
         bool isErc721; // true - ERC721 / false - ERC1155
@@ -21,9 +18,9 @@ abstract contract SqwidERC1155Wrapper is ERC721Holder, ERC1155Holder {
         address extNftContract; // External contract address
     }
 
-    Counters.Counter internal _wrappedCounter;
     mapping(uint256 => WrappedToken) internal _wrappedTokens;
-    mapping(uint256 => uint256) internal _wrappedIdToTokenId;
+    // extNftContract => (extTokenId => tokenId)
+    mapping(address => mapping(uint256 => uint256)) internal _extTokenIdToTokenId;
 
     event WrapToken(
         uint256 tokenId,
@@ -66,25 +63,4 @@ abstract contract SqwidERC1155Wrapper is ERC721Holder, ERC1155Holder {
     ) external virtual returns (uint256);
 
     function unwrapERC1155(uint256 tokenId) external virtual;
-
-    function _getWrappedTokenId(address extNftContract, uint256 extTokenId)
-        internal
-        view
-        returns (uint256)
-    {
-        uint256 tokenId;
-        uint256 totalWrappedCount = _wrappedCounter.current();
-        for (uint256 i; i < totalWrappedCount; i++) {
-            WrappedToken memory wrappedToken = _wrappedTokens[_wrappedIdToTokenId[i + 1]];
-            if (
-                wrappedToken.extNftContract == extNftContract &&
-                wrappedToken.extTokenId == extTokenId
-            ) {
-                tokenId = wrappedToken.tokenId;
-                break;
-            }
-        }
-
-        return tokenId;
-    }
 }

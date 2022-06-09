@@ -29,8 +29,10 @@ describe("************ NFT ******************", () => {
     it("Should get NFT contract data", async () => {
         const interfaceIdErc2981 = "0x2a55205a";
         const supportsErc2981 = await nft.supportsInterface(interfaceIdErc2981);
+        const maxRoyaltyValue = await nft.MAX_ROYALTY_VALUE();
 
         assert(supportsErc2981);
+        expect(Number(maxRoyaltyValue)).to.equal(5000);
     });
 
     it("Should change valid MIME types", async () => {
@@ -59,6 +61,25 @@ describe("************ NFT ******************", () => {
                 royaltyValue
             ),
             "NftMimeTypes: MIME type not valid"
+        );
+    });
+
+    it("Should not allow empty URI", async () => {
+        await throwsException(
+            nft.mint(creatorAddress, 1, "", "image", artistAddress, royaltyValue),
+            "ERC1155: tokenURI has to be non-empty"
+        );
+
+        await throwsException(
+            nft.mintBatch(
+                creatorAddress,
+                [99, 10],
+                ["", ""],
+                ["audio", "video"],
+                [artistAddress, artistAddress],
+                [royaltyValue, royaltyValue]
+            ),
+            "ERC1155: tokenURI has to be non-empty"
         );
     });
 
