@@ -183,95 +183,158 @@ interface ISqwidMarketplace {
 
 contract SqwidGovernance {
     struct Transaction {
+        uint256 id;
+        address proposer;
         address to;
         uint256 value;
         bytes data;
-        bool executed;
+        uint256 deadline;
         uint256 numConfirmations;
+        bool executed;
+        bool cancelled;
     }
 
     struct OwnersChange {
+        uint256 id;
+        address proposer;
         address ownerChanged;
         bool addToList;
+        uint256 deadline;
         uint256 numConfirmations;
+        bool executed;
+        bool cancelled;
     }
 
     struct MinConfirmationsChange {
+        uint256 id;
+        address proposer;
         uint256 newValue;
+        uint256 deadline;
         uint256 numConfirmations;
+        bool executed;
+        bool cancelled;
     }
+
+    uint256 public constant DURATION = 1 weeks;
+    uint256 public constant MAX_ACTIVE_PROPOSALS_PER_OWNER = 10;
 
     address[] private owners;
     uint256 public minConfirmationsRequired;
     mapping(address => uint256) public addressBalance;
     mapping(address => bool) public isOwner;
+    mapping(address => uint256) public ownerActiveProposalsCount;
 
-    Transaction[] public transactions;
-    // mapping from tx index => owner => bool
+    uint256 public transactionsCount;
+    // tx id => Transaction
+    mapping(uint256 => Transaction) public transactions;
+    uint256[] public activeTransactionsIds;
+    // tx id => (owner => approved)
     mapping(uint256 => mapping(address => bool)) public txApproved;
 
-    OwnersChange[] public ownersChanges;
-    // mapping from owner change index => owner => bool
+    uint256 public ownersChangesCount;
+    // owner change id => OwnersChange
+    mapping(uint256 => OwnersChange) public ownersChanges;
+    uint256[] public activeOwnersChangesIds;
+    // owner change id => (owner => approved)
     mapping(uint256 => mapping(address => bool)) public ownersChangeApproved;
 
-    MinConfirmationsChange[] public minConfirmationsChanges;
-    // mapping from min confirmation change index => owner => bool
+    uint256 public minConfirmationsChangesCount;
+    // min confirmation change id => MinConfirmationsChange
+    mapping(uint256 => MinConfirmationsChange) public minConfirmationsChanges;
+    uint256[] public activeMinConfirmationsChangesIds;
+    // min confirmation change id => (owner => approved)
     mapping(uint256 => mapping(address => bool)) public minConfirmationsChangeApproved;
 
     event ProposeTransaction(
-        address owner,
-        uint256 indexed txIndex,
-        address ownerChanged,
+        address indexed proposer,
+        uint256 indexed txId,
+        address to,
         uint256 value,
-        bytes data
+        bytes data,
+        uint256 deadline
     );
 
-    event ExecuteTransaction(address owner, uint256 indexed txIndex);
+    event ExecuteTransaction(address indexed executor, uint256 indexed txId);
 
     event ProposeOwnersChange(
-        address owner,
-        uint256 indexed ownersChangeIndex,
+        address indexed proposer,
+        uint256 indexed ownersChangeId,
         address ownerChanged,
-        bool addToList
+        bool addToList,
+        uint256 deadline
     );
 
-    event ExecuteOwnersChange(address owner, uint256 indexed ownersChangeIndex);
+    event ExecuteOwnersChange(address indexed executor, uint256 indexed ownersChangeId);
 
     event ProposeMinConfirmationsChange(
-        address owner,
-        uint256 indexed minConfirmationsChangeIndex,
-        uint256 newValue
+        address indexed proposer,
+        uint256 indexed minConfirmationsChangeId,
+        uint256 newValue,
+        uint256 deadline
     );
 
-    event ExecuteMinConfirmationsChange(address owner, uint256 indexed minConfirmationsChangeIndex);
+    event ExecuteMinConfirmationsChange(
+        address indexed executor,
+        uint256 indexed minConfirmationsChangeId
+    );
 
     modifier onlyOwner() {
         require(isOwner[msg.sender], "Governance: Caller is not owner");
         _;
     }
 
-    modifier txExists(uint256 _txIndex) {
-        require(_txIndex < transactions.length, "Governance: Tx does not exist");
+    modifier activeTx(uint256 _txId) {
+        Transaction memory transaction = transactions[_txId];
+        require(_txId > 0 && transaction.id == _txId, "Governance: Tx does not exist");
+        require(!transaction.executed, "Governance: Tx already executed");
+        require(!transaction.cancelled, "Governance: Tx cancelled");
+        require(transaction.deadline > block.timestamp, "Governance: Tx deadline has passed");
         _;
     }
 
-    modifier txNotExecuted(uint256 _txIndex) {
-        require(!transactions[_txIndex].executed, "Governance: Tx already executed");
-        _;
-    }
-
-    modifier ownersChangeExists(uint256 _ownersChangeIndex) {
+    modifier activeOwnersChange(uint256 _ownersChangeId) {
+        OwnersChange memory ownersChange = ownersChanges[_ownersChangeId];
         require(
-            _ownersChangeIndex < ownersChanges.length,
+            _ownersChangeId > 0 && ownersChange.id == _ownersChangeId,
             "Governance: Owners change does not exist"
+        );
+        require(!ownersChange.executed, "Governance: Owners change already executed");
+        require(!ownersChange.cancelled, "Governance: Owners change cancelled");
+        require(
+            ownersChange.deadline > block.timestamp,
+            "Governance: Owners change deadline has passed"
         );
         _;
     }
 
-    modifier minConfirmationsChangeExists(uint256 _minConfirmationsChangeIndex) {
+    modifier activeMinConfirmationsChange(uint256 _minConfirmationsChangeId) {
+        MinConfirmationsChange memory minConfirmationsChange = minConfirmationsChanges[
+            _minConfirmationsChangeId
+        ];
         require(
-            _minConfirmationsChangeIndex < minConfirmationsChanges.length,
+            _minConfirmationsChangeId > 0 && minConfirmationsChange.id == _minConfirmationsChangeId,
             "Governance: Min confirmations change does not exist"
+        );
+        require(
+            !minConfirmationsChange.executed,
+            "Governance: Min confirmations change already executed"
+        );
+        require(
+            !minConfirmationsChange.cancelled,
+            "Governance: Min confirmations change cancelled"
+        );
+        require(
+            minConfirmationsChange.deadline > block.timestamp,
+            "Governance: Min confirmations change deadline has passed"
+        );
+        _;
+    }
+
+    modifier maxProposalLimitNotExceeded() {
+        _cleanExpiredProposals();
+        require(
+            ownerActiveProposalsCount[msg.sender] < MAX_ACTIVE_PROPOSALS_PER_OWNER,
+            "Governance: Active proposals limit reached"
         );
         _;
     }
@@ -283,7 +346,7 @@ contract SqwidGovernance {
             "Governance: Invalid minimum confirmations"
         );
 
-        for (uint256 i; i < _owners.length; i++) {
+        for (uint256 i; i < _owners.length; ++i) {
             address owner = _owners[i];
 
             require(owner != address(0), "Governance: Invalid owner");
@@ -313,7 +376,7 @@ contract SqwidGovernance {
      */
     function getAvailableBalance() public view returns (uint256) {
         uint256 availableBalance = address(this).balance;
-        for (uint256 i; i < owners.length; i++) {
+        for (uint256 i; i < owners.length; ++i) {
             availableBalance -= addressBalance[owners[i]];
         }
 
@@ -329,7 +392,7 @@ contract SqwidGovernance {
 
         if (availableBalance >= owners.length) {
             uint256 share = availableBalance / owners.length;
-            for (uint256 i; i < owners.length; i++) {
+            for (uint256 i; i < owners.length; ++i) {
                 addressBalance[owners[i]] += share;
             }
         }
@@ -349,27 +412,6 @@ contract SqwidGovernance {
         return owners;
     }
 
-    /**
-     * Returns total number of transaction proposals.
-     */
-    function transactionsCount() external view returns (uint256) {
-        return transactions.length;
-    }
-
-    /**
-     * Returns total number of owners change proposals.
-     */
-    function ownersChangesCount() external view returns (uint256) {
-        return ownersChanges.length;
-    }
-
-    /**
-     * Returns total number of minimum confirmations change proposals.
-     */
-    function minConfirmationsChangesCount() external view returns (uint256) {
-        return minConfirmationsChanges.length;
-    }
-
     //////////////////////// EXTERNAL TX WITH APPROVAL ////////////////////////////////////
     ///////////// Requires a minimum of confirmations to be executed //////////////////////
 
@@ -383,62 +425,57 @@ contract SqwidGovernance {
         address _to,
         uint256 _value,
         bytes memory _data
-    ) external onlyOwner {
-        uint256 txIndex = transactions.length;
+    ) external onlyOwner maxProposalLimitNotExceeded {
+        uint256 txId = ++transactionsCount;
 
-        transactions.push(
-            Transaction({
-                to: _to,
-                value: _value,
-                data: _data,
-                executed: false,
-                numConfirmations: 0
-            })
-        );
+        transactions[txId] = Transaction({
+            id: txId,
+            proposer: msg.sender,
+            to: _to,
+            value: _value,
+            data: _data,
+            deadline: block.timestamp + DURATION,
+            numConfirmations: 0,
+            executed: false,
+            cancelled: false
+        });
 
-        approveTransaction(txIndex);
+        approveTransaction(txId);
 
-        emit ProposeTransaction(msg.sender, txIndex, _to, _value, _data);
+        activeTransactionsIds.push(txId);
+        ++ownerActiveProposalsCount[msg.sender];
+
+        emit ProposeTransaction(msg.sender, txId, _to, _value, _data, block.timestamp + DURATION);
     }
 
     /**
      * Approves a transaction.
      */
-    function approveTransaction(uint256 _txIndex)
-        public
-        onlyOwner
-        txExists(_txIndex)
-        txNotExecuted(_txIndex)
-    {
-        require(!txApproved[_txIndex][msg.sender], "Governance: Tx already approved");
-        Transaction storage transaction = transactions[_txIndex];
-        transaction.numConfirmations++;
-        txApproved[_txIndex][msg.sender] = true;
+    function approveTransaction(uint256 _txId) public onlyOwner activeTx(_txId) {
+        require(!txApproved[_txId][msg.sender], "Governance: Tx already approved");
+        ++transactions[_txId].numConfirmations;
+        txApproved[_txId][msg.sender] = true;
     }
 
     /**
      * Executes a transaction.
      * It should have the minimum number of confirmations required in order to be executed.
      */
-    function executeTransaction(uint256 _txIndex)
-        public
-        onlyOwner
-        txExists(_txIndex)
-        txNotExecuted(_txIndex)
-    {
-        Transaction storage transaction = transactions[_txIndex];
-
+    function executeTransaction(uint256 _txId) public onlyOwner activeTx(_txId) {
+        Transaction memory transaction = transactions[_txId];
         require(
             transaction.numConfirmations >= minConfirmationsRequired,
             "Governance: Tx not approved"
         );
 
-        transaction.executed = true;
+        transactions[_txId].executed = true;
+
+        _removeFromActiveTransactionsIds(_txId);
 
         (bool success, ) = transaction.to.call{ value: transaction.value }(transaction.data);
         require(success, "Governance: tx failed");
 
-        emit ExecuteTransaction(msg.sender, _txIndex);
+        emit ExecuteTransaction(msg.sender, _txId);
     }
 
     //////////////////////// INTERNAL TX WITH APPROVAL ////////////////////////////////////
@@ -449,49 +486,68 @@ contract SqwidGovernance {
      *      `_ownerChanged`: address of the owner to be changed
      *      `_addToList`: true --> add new owner / false --> remove existing owner
      */
-    function proposeOwnersChange(address _ownerChanged, bool _addToList) external onlyOwner {
-        uint256 ownersChangeIndex = ownersChanges.length;
+    function proposeOwnersChange(address _ownerChanged, bool _addToList)
+        external
+        onlyOwner
+        maxProposalLimitNotExceeded
+    {
+        _addToList
+            ? require(!isOwner[_ownerChanged], "Governance: Owner not unique")
+            : require(isOwner[_ownerChanged], "Governance: Owner not found");
 
-        ownersChanges.push(
-            OwnersChange({
-                ownerChanged: _ownerChanged,
-                addToList: _addToList,
-                numConfirmations: 0
-            })
+        uint256 ownersChangeId = ++ownersChangesCount;
+
+        ownersChanges[ownersChangeId] = OwnersChange({
+            id: ownersChangeId,
+            proposer: msg.sender,
+            ownerChanged: _ownerChanged,
+            addToList: _addToList,
+            deadline: block.timestamp + DURATION,
+            numConfirmations: 0,
+            executed: false,
+            cancelled: false
+        });
+
+        approveOwnersChange(ownersChangeId);
+
+        activeOwnersChangesIds.push(ownersChangeId);
+        ++ownerActiveProposalsCount[msg.sender];
+
+        emit ProposeOwnersChange(
+            msg.sender,
+            ownersChangeId,
+            _ownerChanged,
+            _addToList,
+            block.timestamp + DURATION
         );
-
-        approveOwnersChange(ownersChangeIndex);
-
-        emit ProposeOwnersChange(msg.sender, ownersChangeIndex, _ownerChanged, _addToList);
     }
 
     /**
      * Approves a change in the owners list.
      */
-    function approveOwnersChange(uint256 _ownersChangeIndex)
+    function approveOwnersChange(uint256 _ownersChangeId)
         public
         onlyOwner
-        ownersChangeExists(_ownersChangeIndex)
+        activeOwnersChange(_ownersChangeId)
     {
         require(
-            !ownersChangeApproved[_ownersChangeIndex][msg.sender],
+            !ownersChangeApproved[_ownersChangeId][msg.sender],
             "Governance: Owners change already approved"
         );
-        OwnersChange storage ownersChange = ownersChanges[_ownersChangeIndex];
-        ownersChange.numConfirmations++;
-        ownersChangeApproved[_ownersChangeIndex][msg.sender] = true;
+        ++ownersChanges[_ownersChangeId].numConfirmations;
+        ownersChangeApproved[_ownersChangeId][msg.sender] = true;
     }
 
     /**
      * Executes a change in the owners list.
      * It should have the minimum number of confirmations required in order to do the change.
      */
-    function executeOwnersChange(uint256 _ownersChangeIndex)
+    function executeOwnersChange(uint256 _ownersChangeId)
         public
         onlyOwner
-        ownersChangeExists(_ownersChangeIndex)
+        activeOwnersChange(_ownersChangeId)
     {
-        OwnersChange storage ownersChange = ownersChanges[_ownersChangeIndex];
+        OwnersChange memory ownersChange = ownersChanges[_ownersChangeId];
 
         require(
             ownersChange.numConfirmations >= minConfirmationsRequired,
@@ -508,7 +564,7 @@ contract SqwidGovernance {
 
             isOwner[ownersChange.ownerChanged] = false;
             uint256 index;
-            for (uint256 i; i < owners.length; i++) {
+            for (uint256 i; i < owners.length; ++i) {
                 if (owners[i] == ownersChange.ownerChanged) {
                     index = i;
                     break;
@@ -522,9 +578,11 @@ contract SqwidGovernance {
             }
         }
 
-        _resetProposals();
+        ownersChanges[_ownersChangeId].executed = true;
 
-        emit ExecuteOwnersChange(msg.sender, _ownersChangeIndex);
+        _cancelActiveProposals();
+
+        emit ExecuteOwnersChange(msg.sender, _ownersChangeId);
     }
 
     /**
@@ -532,48 +590,68 @@ contract SqwidGovernance {
      * transactions, changes in owners and changes in minum number of confirmations.
      *      `_newValue`: new value for the minimum number of confirmations required
      */
-    function proposeMinConfirmationsChange(uint256 _newValue) external onlyOwner {
-        uint256 minConfirmationsChangeIndex = minConfirmationsChanges.length;
-
-        minConfirmationsChanges.push(
-            MinConfirmationsChange({ newValue: _newValue, numConfirmations: 0 })
+    function proposeMinConfirmationsChange(uint256 _newValue)
+        external
+        onlyOwner
+        maxProposalLimitNotExceeded
+    {
+        require(
+            _newValue > 0 && _newValue <= owners.length,
+            "Governance: Invalid minimum confirmations"
         );
 
-        approveMinConfirmationsChange(minConfirmationsChangeIndex);
+        uint256 minConfirmationsChangeId = ++minConfirmationsChangesCount;
 
-        emit ProposeMinConfirmationsChange(msg.sender, minConfirmationsChangeIndex, _newValue);
+        minConfirmationsChanges[minConfirmationsChangeId] = MinConfirmationsChange({
+            id: minConfirmationsChangeId,
+            proposer: msg.sender,
+            newValue: _newValue,
+            deadline: block.timestamp + DURATION,
+            numConfirmations: 0,
+            executed: false,
+            cancelled: false
+        });
+
+        approveMinConfirmationsChange(minConfirmationsChangeId);
+
+        activeMinConfirmationsChangesIds.push(minConfirmationsChangeId);
+        ++ownerActiveProposalsCount[msg.sender];
+
+        emit ProposeMinConfirmationsChange(
+            msg.sender,
+            minConfirmationsChangeId,
+            _newValue,
+            block.timestamp + DURATION
+        );
     }
 
     /**
      * Approves a change in the minimum number of confirmations required.
      */
-    function approveMinConfirmationsChange(uint256 _minConfirmationsChangeIndex)
+    function approveMinConfirmationsChange(uint256 _minConfirmationsChangeId)
         public
         onlyOwner
-        minConfirmationsChangeExists(_minConfirmationsChangeIndex)
+        activeMinConfirmationsChange(_minConfirmationsChangeId)
     {
         require(
-            !minConfirmationsChangeApproved[_minConfirmationsChangeIndex][msg.sender],
+            !minConfirmationsChangeApproved[_minConfirmationsChangeId][msg.sender],
             "Governance: Min confirmations change already approved"
         );
-        MinConfirmationsChange storage minConfirmationsChange = minConfirmationsChanges[
-            _minConfirmationsChangeIndex
-        ];
-        minConfirmationsChange.numConfirmations++;
-        minConfirmationsChangeApproved[_minConfirmationsChangeIndex][msg.sender] = true;
+        ++minConfirmationsChanges[_minConfirmationsChangeId].numConfirmations;
+        minConfirmationsChangeApproved[_minConfirmationsChangeId][msg.sender] = true;
     }
 
     /**
      * Executes a change in the minimum number of confirmations required.
      * It should have the minimum number of confirmations required in order to be executed.
      */
-    function executeMinConfirmationsChange(uint256 _minConfirmationsChangeIndex)
+    function executeMinConfirmationsChange(uint256 _minConfirmationsChangeId)
         public
         onlyOwner
-        minConfirmationsChangeExists(_minConfirmationsChangeIndex)
+        activeMinConfirmationsChange(_minConfirmationsChangeId)
     {
-        MinConfirmationsChange storage minConfirmationsChange = minConfirmationsChanges[
-            _minConfirmationsChangeIndex
+        MinConfirmationsChange memory minConfirmationsChange = minConfirmationsChanges[
+            _minConfirmationsChangeId
         ];
 
         require(
@@ -587,29 +665,107 @@ contract SqwidGovernance {
 
         minConfirmationsRequired = minConfirmationsChange.newValue;
 
-        _resetProposals();
+        minConfirmationsChanges[_minConfirmationsChangeId].executed = true;
 
-        emit ExecuteMinConfirmationsChange(msg.sender, _minConfirmationsChangeIndex);
+        _cancelActiveProposals();
+
+        emit ExecuteMinConfirmationsChange(msg.sender, _minConfirmationsChangeId);
     }
 
+    //////////////////////// PRIVATE FUNCTIONS ////////////////////////////////////
     /**
-     * Resets all proposals confirmations count after the owners list or the
-     * minConfirmationsRequired value have been modified.
-     * Existing approvals for those proposals are invalidated.
+     * Looks for active proposals and removes them if the deadline has passed.
      */
-    function _resetProposals() private {
-        for (uint256 i; i < transactions.length; i++) {
-            if (!transactions[i].executed) {
-                transactions[i].numConfirmations = 0;
+    function _cleanExpiredProposals() private {
+        for (uint256 i = activeTransactionsIds.length; i > 0; --i) {
+            Transaction memory transaction = transactions[activeTransactionsIds[i - 1]];
+            if (transaction.deadline < block.timestamp) {
+                activeTransactionsIds[i - 1] = activeTransactionsIds[
+                    activeTransactionsIds.length - 1
+                ];
+                activeTransactionsIds.pop();
+                --ownerActiveProposalsCount[transaction.proposer];
             }
         }
 
-        for (uint256 i; i < ownersChanges.length; i++) {
-            ownersChanges[i].numConfirmations = 0;
+        for (uint256 i = activeOwnersChangesIds.length; i > 0; --i) {
+            OwnersChange memory ownersChange = ownersChanges[activeOwnersChangesIds[i - 1]];
+            if (ownersChange.deadline < block.timestamp) {
+                activeOwnersChangesIds[i - 1] = activeOwnersChangesIds[
+                    activeOwnersChangesIds.length - 1
+                ];
+                activeOwnersChangesIds.pop();
+                --ownerActiveProposalsCount[ownersChange.proposer];
+            }
         }
 
-        for (uint256 i; i < minConfirmationsChanges.length; i++) {
-            minConfirmationsChanges[i].numConfirmations = 0;
+        for (uint256 i = activeMinConfirmationsChangesIds.length; i > 0; --i) {
+            MinConfirmationsChange storage minConfirmationsChange = minConfirmationsChanges[
+                activeMinConfirmationsChangesIds[i - 1]
+            ];
+            if (minConfirmationsChange.deadline < block.timestamp) {
+                activeMinConfirmationsChangesIds[i - 1] = activeMinConfirmationsChangesIds[
+                    activeMinConfirmationsChangesIds.length - 1
+                ];
+                activeMinConfirmationsChangesIds.pop();
+                --ownerActiveProposalsCount[minConfirmationsChange.proposer];
+            }
+        }
+    }
+
+    /**
+     * Cancels all active proposals after the owners list or the minConfirmationsRequired value
+     * have been modified.
+     * Existing approvals for those proposals are invalidated.
+     */
+    function _cancelActiveProposals() private {
+        for (uint256 i = activeTransactionsIds.length; i > 0; --i) {
+            uint256 txId = activeTransactionsIds[i - 1];
+            Transaction memory transaction = transactions[txId];
+            if (transaction.deadline > block.timestamp) {
+                transactions[txId].cancelled = true;
+            }
+            activeTransactionsIds.pop();
+            --ownerActiveProposalsCount[transaction.proposer];
+        }
+
+        for (uint256 i = activeOwnersChangesIds.length; i > 0; --i) {
+            uint256 ownerChangeId = activeOwnersChangesIds[i - 1];
+            OwnersChange memory ownersChange = ownersChanges[ownerChangeId];
+            if (ownersChange.deadline > block.timestamp && !ownersChange.executed) {
+                ownersChanges[ownerChangeId].cancelled = true;
+            }
+            activeOwnersChangesIds.pop();
+            --ownerActiveProposalsCount[ownersChange.proposer];
+        }
+
+        for (uint256 i = activeMinConfirmationsChangesIds.length; i > 0; --i) {
+            uint256 minConfirmationsChangeId = activeMinConfirmationsChangesIds[i - 1];
+            MinConfirmationsChange memory minConfirmationsChange = minConfirmationsChanges[
+                minConfirmationsChangeId
+            ];
+            if (
+                minConfirmationsChange.deadline > block.timestamp &&
+                !minConfirmationsChange.executed
+            ) {
+                minConfirmationsChanges[minConfirmationsChangeId].cancelled = true;
+            }
+            activeMinConfirmationsChangesIds.pop();
+            --ownerActiveProposalsCount[minConfirmationsChange.proposer];
+        }
+    }
+
+    /**
+     * Removes a transaction id from the activeTransactionsIds array.
+     */
+    function _removeFromActiveTransactionsIds(uint256 _txId) private {
+        for (uint256 i; i < activeTransactionsIds.length; ++i) {
+            if (activeTransactionsIds[i] == _txId) {
+                activeTransactionsIds[i] = activeTransactionsIds[activeTransactionsIds.length - 1];
+                activeTransactionsIds.pop();
+                --ownerActiveProposalsCount[transactions[_txId].proposer];
+                break;
+            }
         }
     }
 }

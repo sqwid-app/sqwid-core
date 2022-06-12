@@ -2,8 +2,6 @@ require("@reef-defi/hardhat-reef");
 
 const SEEDS = require("./seeds.json");
 
-// This is a sample Hardhat task. To learn how to create your own go to
-// https://hardhat.org/guides/create-task.html
 task("accounts", "Prints the list of accounts", async () => {
     const accounts = await ethers.getSigners();
 
@@ -11,9 +9,6 @@ task("accounts", "Prints the list of accounts", async () => {
         console.log(account.address);
     }
 });
-
-// You need to export an object to set up your config
-// Go to https://hardhat.org/config/ to learn more
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
@@ -59,10 +54,10 @@ module.exports = {
         timeout: 150000,
     },
     contracts: {
-        market: "0x41E7FF1F93940F3247C1dF78112B69A1375cd1e4",
-        nft: "0x7e08b0011c855aa32044f6cd722Aa81dE69431BC",
+        market: "0x0a3F2785dBBC5F022De511AAB8846388B78009fD",
+        nft: "0x1A511793FE92A62AF8bC41d65d8b94d4c2BD22c3",
         util: "0x08ABAa5BfeeB68D5cD3fb33Df49AA1F611CdE0cC",
-        governance: "0x82536486e2684F1aB2B06283AF2d4fbcd71BdF0b",
+        governance: "0x1a7C2eF2c3791018Dc89c54D98914bCd9c30CF35",
         balanceHelper: "0x6aC1413A64b153aA16fabbD9F97D30dC2CDE2604",
         gasBurner: "0xE6a505Fd9868AFd411EcB93d46EbB892Eb24E501",
         dummyERC721: "0xf5c05d8013724AC037eE6AD9CCea04905384bacE",

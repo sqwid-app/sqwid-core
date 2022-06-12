@@ -7,7 +7,7 @@ This project has been created using the [Hardhat-reef-template](https://github.c
 | |Marketplace contract|NFT contract|Util contract|
 |-----|-----|-----|-----|
 |**Mainnet**|[0xe3f2740452A860c6441456aDF86D6d0be715ae82](https://reefscan.com/contract/0xe3f2740452A860c6441456aDF86D6d0be715ae82)|[0xa1957161Ee6Cb6D86Ae7A9cE12A30C40Dc9F1B68](https://reefscan.com/contract/0xa1957161Ee6Cb6D86Ae7A9cE12A30C40Dc9F1B68)|[0xffb12A5f69AFBD58Dc49b4AE9044D8F20D131733](https://reefscan.com/contract/0xffb12A5f69AFBD58Dc49b4AE9044D8F20D131733)|
-|**Testnet**|[0xd3202Ee6077C7cc25eAea3aE11bec2cD731D19FC](https://testnet.reefscan.com/contract/0xd3202Ee6077C7cc25eAea3aE11bec2cD731D19FC)|[0xE3c13deC43Ad58F95f964Acd0461450AD0C35649](https://testnet.reefscan.com/contract/0xE3c13deC43Ad58F95f964Acd0461450AD0C35649)|[0x08925246669D150d5D4597D756A3C788eae2834B](https://testnet.reefscan.com/contract/0x08925246669D150d5D4597D756A3C788eae2834B)|
+|**Testnet**|[0x0a3F2785dBBC5F022De511AAB8846388B78009fD](https://testnet.reefscan.com/contract/0x0a3F2785dBBC5F022De511AAB8846388B78009fD)|[0x1A511793FE92A62AF8bC41d65d8b94d4c2BD22c3](https://testnet.reefscan.com/contract/0x1A511793FE92A62AF8bC41d65d8b94d4c2BD22c3)|[0x08925246669D150d5D4597D756A3C788eae2834B](https://testnet.reefscan.com/contract/0x08925246669D150d5D4597D756A3C788eae2834B)|
 
 ## Installing
 

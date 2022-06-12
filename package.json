@@ -4,6 +4,8 @@
         "compile": "hardhat compile",
         "deploy": "yarn hardhat run ./scripts/deploy.js",
         "deploy:mainnet": "yarn hardhat run ./scripts/deploy.js --network reef_mainnet",
+        "deploy-governance": "yarn hardhat run ./scripts/deploy-governance.js",
+        "deploy-governance:mainnet": "yarn hardhat run ./scripts/deploy-governance.js --network reef_mainnet",
         "encode": "yarn hardhat run ./scripts/encodeFunctionCall.js",
         "decode": "yarn hardhat run ./scripts/decodeFunctionCall.js",
         "test": "yarn hardhat test",

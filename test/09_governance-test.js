@@ -62,6 +62,8 @@ describe("************ Governance ******************", () => {
         expect(owners[1]).to.equal(owner2Address);
         expect(owners[2]).to.equal(owner3Address);
         expect(Number(await governance.minConfirmationsRequired())).to.equal(2);
+        expect(Number(await governance.DURATION())).to.equal(60 * 60 * 24 * 7);
+        expect(Number(await governance.MAX_ACTIVE_PROPOSALS_PER_OWNER())).to.equal(10);
     });
 
     it("Should transfer market ownership", async () => {
@@ -93,9 +95,17 @@ describe("************ Governance ******************", () => {
             .connect(owner1)
             .proposeTransaction(market.address, 0, encodedFunctionCall1);
         const receipt1 = await tx1.wait();
-        const transactionIndex1 = receipt1.events[0].args.txIndex;
-        await governance.connect(owner2).approveTransaction(transactionIndex1);
-        await governance.connect(owner3).executeTransaction(transactionIndex1);
+        const transactionId1 = Number(receipt1.events[0].args.txId);
+        await governance.connect(owner2).approveTransaction(transactionId1);
+        expect(Number(await governance.activeTransactionsIds(0))).to.equal(transactionId1);
+        expect(Number((await governance.transactions(transactionId1)).numConfirmations)).to.equal(
+            2
+        );
+        expect(Number(await governance.ownerActiveProposalsCount(owner1Address))).to.equal(1);
+
+        await governance.connect(owner3).executeTransaction(transactionId1);
+        assert((await governance.transactions(transactionId1)).executed);
+        expect(Number(await governance.ownerActiveProposalsCount(owner1Address))).to.equal(0);
 
         let fetchedMarketFee = await market.marketFees(1);
         expect(Number(fetchedMarketFee)).to.equal(350);
@@ -106,9 +116,17 @@ describe("************ Governance ******************", () => {
             .connect(owner1)
             .proposeTransaction(market.address, 0, encodedFunctionCall2);
         const receipt2 = await tx2.wait();
-        const transactionIndex2 = receipt2.events[0].args.txIndex;
-        await governance.connect(owner2).approveTransaction(transactionIndex2);
-        await governance.connect(owner3).executeTransaction(transactionIndex2);
+        const transactionId2 = Number(receipt2.events[0].args.txId);
+        await governance.connect(owner2).approveTransaction(transactionId2);
+        expect(Number(await governance.activeTransactionsIds(0))).to.equal(transactionId2);
+        expect(Number((await governance.transactions(transactionId2)).numConfirmations)).to.equal(
+            2
+        );
+        expect(Number(await governance.ownerActiveProposalsCount(owner1Address))).to.equal(1);
+
+        await governance.connect(owner3).executeTransaction(transactionId2);
+        assert((await governance.transactions(transactionId2)).executed);
+        expect(Number(await governance.ownerActiveProposalsCount(owner1Address))).to.equal(0);
 
         fetchedMarketFee = await market.marketFees(1);
         expect(Number(fetchedMarketFee)).to.equal(250);
@@ -205,9 +223,14 @@ describe("************ Governance ******************", () => {
 
     it("Should add new owner", async () => {
         const tx = await governance.connect(owner1).proposeOwnersChange(iniOwnerAddress, true);
-        const index = (await tx.wait()).events[0].args.ownersChangeIndex;
-        await governance.connect(owner2).approveOwnersChange(index);
-        await governance.connect(owner1).executeOwnersChange(index);
+        const id = Number((await tx.wait()).events[0].args.ownersChangeId);
+        await governance.connect(owner2).approveOwnersChange(id);
+        expect(Number((await governance.ownersChanges(id)).numConfirmations)).to.equal(2);
+        expect(Number(await governance.ownerActiveProposalsCount(owner1Address))).to.equal(1);
+
+        await governance.connect(owner1).executeOwnersChange(id);
+        assert((await governance.ownersChanges(id)).executed);
+        expect(Number(await governance.ownerActiveProposalsCount(owner1Address))).to.equal(0);
 
         const owners = await governance.getOwners();
         expect(owners.length).to.equal(4);
@@ -216,9 +239,14 @@ describe("************ Governance ******************", () => {
 
     it("Should remove owner", async () => {
         const tx = await governance.connect(owner1).proposeOwnersChange(iniOwnerAddress, false);
-        const index = (await tx.wait()).events[0].args.ownersChangeIndex;
-        await governance.connect(iniOwner).approveOwnersChange(index);
-        await governance.connect(owner1).executeOwnersChange(index);
+        const id = Number((await tx.wait()).events[0].args.ownersChangeId);
+        await governance.connect(iniOwner).approveOwnersChange(id);
+        expect(Number((await governance.ownersChanges(id)).numConfirmations)).to.equal(2);
+        expect(Number(await governance.ownerActiveProposalsCount(owner1Address))).to.equal(1);
+
+        await governance.connect(owner1).executeOwnersChange(id);
+        assert((await governance.ownersChanges(id)).executed);
+        expect(Number(await governance.ownerActiveProposalsCount(owner1Address))).to.equal(0);
 
         const owners = await governance.getOwners();
         expect(owners.length).to.equal(3);
@@ -227,17 +255,21 @@ describe("************ Governance ******************", () => {
 
     it("Should modify minimum confirmations", async () => {
         const tx = await governance.connect(owner1).proposeMinConfirmationsChange(3);
-        const index = (await tx.wait()).events[0].args.minConfirmationsChangeIndex;
-        await governance.connect(owner3).approveMinConfirmationsChange(index);
-        await governance.connect(owner2).executeMinConfirmationsChange(index);
+        const id = Number((await tx.wait()).events[0].args.minConfirmationsChangeId);
+        await governance.connect(owner3).approveMinConfirmationsChange(id);
+        expect(Number((await governance.minConfirmationsChanges(id)).numConfirmations)).to.equal(2);
+        expect(Number(await governance.ownerActiveProposalsCount(owner1Address))).to.equal(1);
 
+        await governance.connect(owner2).executeMinConfirmationsChange(id);
         expect(Number(await governance.minConfirmationsRequired())).to.equal(3);
+        assert((await governance.minConfirmationsChanges(id)).executed);
+        expect(Number(await governance.ownerActiveProposalsCount(owner1Address))).to.equal(0);
 
         const tx2 = await governance.connect(owner1).proposeMinConfirmationsChange(2);
-        const index2 = (await tx2.wait()).events[0].args.minConfirmationsChangeIndex;
-        await governance.connect(owner2).approveMinConfirmationsChange(index2);
-        await governance.connect(owner3).approveMinConfirmationsChange(index2);
-        await governance.connect(owner1).executeMinConfirmationsChange(index2);
+        const id2 = (await tx2.wait()).events[0].args.minConfirmationsChangeId;
+        await governance.connect(owner2).approveMinConfirmationsChange(id2);
+        await governance.connect(owner3).approveMinConfirmationsChange(id2);
+        await governance.connect(owner1).executeMinConfirmationsChange(id2);
 
         expect(Number(await governance.minConfirmationsRequired())).to.equal(2);
     });
@@ -252,8 +284,8 @@ describe("************ Governance ******************", () => {
             .connect(owner1)
             .proposeTransaction(market.address, 0, encodedFunctionCall);
         const receipt1 = await tx1.wait();
-        const transactionIndex = receipt1.events[0].args.txIndex;
-        let transaction = await governance.transactions(transactionIndex);
+        const transactionId = receipt1.events[0].args.txId;
+        let transaction = await governance.transactions(transactionId);
         const decodedFunctionCall = market.interface.decodeFunctionData(
             "transferOwnership",
             transaction.data
@@ -266,23 +298,23 @@ describe("************ Governance ******************", () => {
 
         // Owner1 tries to approve same market owner
         await throwsException(
-            governance.connect(owner1).approveTransaction(transactionIndex),
+            governance.connect(owner1).approveTransaction(transactionId),
             "Governance: Tx already approved"
         );
 
         // Owner2 tries to execute transfer ownership
         await throwsException(
-            governance.connect(owner2).executeTransaction(transactionIndex),
+            governance.connect(owner2).executeTransaction(transactionId),
             "Governance: Tx not approved"
         );
 
         // Owner 2 approves new market owner
-        await governance.connect(owner2).approveTransaction(transactionIndex);
+        await governance.connect(owner2).approveTransaction(transactionId);
 
         // Owner3 executes transfer ownership
-        await governance.connect(owner3).executeTransaction(transactionIndex);
+        await governance.connect(owner3).executeTransaction(transactionId);
 
-        transaction = await governance.transactions(transactionIndex);
+        transaction = await governance.transactions(transactionId);
         assert(transaction.executed);
         expect(Number(transaction.numConfirmations)).to.equal(2);
 
@@ -290,7 +322,7 @@ describe("************ Governance ******************", () => {
 
         // Owner3 executes transfer again
         await throwsException(
-            governance.connect(owner2).executeTransaction(transactionIndex),
+            governance.connect(owner2).executeTransaction(transactionId),
             "Governance: Tx already executed"
         );
     });

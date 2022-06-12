@@ -66,7 +66,7 @@ exports.getMainContracts = async (marketFee, owner) => {
         await nft.deployed();
         nftContractAddress = nft.address;
     } else {
-        nft = await NFT.attach(nftContractAddress);
+        nft = NFT.attach(nftContractAddress);
     }
     console.log(`\tNFT contact deployed ${nftContractAddress}`);
 
@@ -79,7 +79,7 @@ exports.getMainContracts = async (marketFee, owner) => {
         marketContractAddress = market.address;
     } else {
         // Get deployed contract
-        market = await Market.attach(marketContractAddress);
+        market = Market.attach(marketContractAddress);
         await market.setNftContractAddress(nftContractAddress);
     }
     console.log(`\tMarket contract deployed in ${marketContractAddress}`);
@@ -93,7 +93,7 @@ exports.getMainContracts = async (marketFee, owner) => {
         utilContractAddress = marketUtil.address;
     } else {
         // Get deployed contract
-        marketUtil = await MarketUtil.attach(utilContractAddress);
+        marketUtil = MarketUtil.attach(utilContractAddress);
         await marketUtil.setMarketContractAddress(marketContractAddress);
     }
     console.log(`\tUtil contract deployed in ${utilContractAddress}`);
